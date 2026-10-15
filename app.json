@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "EditFlow",
+    "slug": "editflow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0D0F12",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.editflow.app",
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to recognize your voice for client and video tracking.",
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use your microphone for voice commands."
+      }
+    },
+    "android": {
+      "package": "com.editflow.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#0D0F12",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "RECORD_AUDIO",
+        "INTERNET",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sqlite",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to use your microphone for voice commands.",
+          "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to recognize your voice for client and video tracking."
+        }
+      ],
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1422b932-a2d7-43b7-b789-6081666d5f7d"
+      }
+    },
+    "owner": "toufiq002s-team"
+  }
+}
