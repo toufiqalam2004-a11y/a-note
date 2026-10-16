@@ -5,6 +5,7 @@ import { ClientWithVideos, VideoItem } from '../types';
 import { THEME } from '../constants/theme';
 import { formatCurrency } from '../utils/calculations';
 import { VideoChecklistItem } from './VideoChecklistItem';
+import { ClientHistoryExportModal } from './ClientHistoryExportModal';
 
 interface ClientCardProps {
   client: ClientWithVideos;
@@ -20,6 +21,7 @@ export const ClientCard: React.FC<ClientCardProps> = ({
   defaultExpanded = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [isHistoryModalVisible, setIsHistoryModalVisible] = useState(false);
   const { calculations, videos } = client;
 
   const progressPercent =
@@ -140,6 +142,18 @@ export const ClientCard: React.FC<ClientCardProps> = ({
         )}
       </View>
 
+      {/* History & Export Action Button */}
+      <View style={styles.cardActionsRow}>
+        <TouchableOpacity
+          style={styles.historyExportBtn}
+          onPress={() => setIsHistoryModalVisible(true)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="document-text-outline" size={14} color={THEME.colors.mint} />
+          <Text style={styles.historyExportBtnText}>History & Reports (PDF / XLSX)</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Expandable Video Checklist */}
       {isExpanded && (
         <View style={styles.checklistSection}>
@@ -167,36 +181,51 @@ export const ClientCard: React.FC<ClientCardProps> = ({
           )}
         </View>
       )}
+
+      {/* Client History & PDF/Excel Export Modal */}
+      <ClientHistoryExportModal
+        visible={isHistoryModalVisible}
+        client={client}
+        onClose={() => setIsHistoryModalVisible(false)}
+        onToggleVideo={onToggleVideo}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: THEME.colors.surface,
-    borderRadius: THEME.radius.lg,
-    padding: THEME.spacing.md,
-    marginBottom: THEME.spacing.md,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: THEME.colors.shadowColor,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 4,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: THEME.spacing.sm,
+    marginBottom: 10,
   },
   nameGroup: {
     flex: 1,
   },
   clientName: {
-    fontSize: THEME.typography.sizes.lg,
-    fontWeight: '700',
-    color: THEME.colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '800',
+    color: THEME.colors.textNavy,
+    letterSpacing: -0.2,
   },
   rateSubtitle: {
-    fontSize: THEME.typography.sizes.xs,
+    fontSize: 12,
     color: THEME.colors.textMuted,
+    fontWeight: '500',
     marginTop: 2,
   },
   actionButtons: {
@@ -205,47 +234,48 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconBtn: {
-    padding: 6,
-    borderRadius: THEME.radius.sm,
-    backgroundColor: THEME.colors.surfaceSubtle,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F5F0FB',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   expandToggleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: THEME.colors.surfaceElevated,
-    paddingHorizontal: 10,
+    backgroundColor: THEME.colors.mintLight,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: THEME.radius.md,
-    borderWidth: 1,
-    borderColor: THEME.colors.mintBorder,
+    borderRadius: 9999,
     gap: 4,
   },
   expandToggleText: {
-    fontSize: THEME.typography.sizes.xs,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     color: THEME.colors.mint,
   },
   progressContainer: {
-    height: 4,
-    backgroundColor: THEME.colors.surfaceElevated,
-    borderRadius: 2,
+    height: 6,
+    backgroundColor: '#EAE4F5',
+    borderRadius: 3,
     marginVertical: 10,
     overflow: 'hidden',
   },
   progressBar: {
     height: '100%',
     backgroundColor: THEME.colors.mint,
-    borderRadius: 2,
+    borderRadius: 3,
   },
   statsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: THEME.colors.surfaceSubtle,
-    borderRadius: THEME.radius.md,
-    padding: 10,
-    marginVertical: 6,
+    backgroundColor: '#F9F6FE',
+    borderRadius: 18,
+    padding: 12,
+    marginVertical: 8,
     borderWidth: 1,
-    borderColor: THEME.colors.border,
+    borderColor: '#EAE4F5',
   },
   statBox: {
     alignItems: 'center',
@@ -256,17 +286,18 @@ const styles = StyleSheet.create({
     color: THEME.colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    marginBottom: 3,
+    fontWeight: '700',
+    marginBottom: 2,
   },
   statValue: {
-    fontSize: THEME.typography.sizes.base,
-    fontWeight: '700',
-    color: THEME.colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '800',
+    color: THEME.colors.textNavy,
   },
   statUnit: {
     fontSize: 10,
-    fontWeight: '400',
-    color: THEME.colors.textSecondary,
+    fontWeight: '500',
+    color: THEME.colors.textMuted,
   },
   financialRow: {
     flexDirection: 'row',
@@ -278,41 +309,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: THEME.colors.surfaceElevated,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: THEME.radius.sm,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
+    backgroundColor: '#F5F0FB',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 9999,
   },
   unusedPill: {
-    backgroundColor: THEME.colors.amberGlow,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
+    backgroundColor: THEME.colors.amberLight,
   },
   finPillLabel: {
     fontSize: 11,
-    color: THEME.colors.textSecondary,
+    color: THEME.colors.textMuted,
+    fontWeight: '500',
   },
   finPillVal: {
     fontSize: 11,
-    fontWeight: '700',
-    color: THEME.colors.textPrimary,
+    fontWeight: '800',
+    color: THEME.colors.textNavy,
   },
   checklistSection: {
-    marginTop: THEME.spacing.md,
+    marginTop: 14,
   },
   checklistDivider: {
     height: 1,
-    backgroundColor: THEME.colors.border,
-    marginBottom: THEME.spacing.sm,
+    backgroundColor: '#F2EDFA',
+    marginBottom: 10,
   },
   checklistHeader: {
     marginBottom: 8,
   },
   checklistTitle: {
-    fontSize: THEME.typography.sizes.sm,
-    fontWeight: '700',
-    color: THEME.colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '800',
+    color: THEME.colors.textNavy,
   },
   checklistHint: {
     fontSize: 11,
@@ -320,9 +349,28 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   emptyVideosText: {
-    fontSize: THEME.typography.sizes.xs,
+    fontSize: 12,
     color: THEME.colors.textMuted,
     fontStyle: 'italic',
     paddingVertical: 8,
+  },
+  cardActionsRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+  },
+  historyExportBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#EDE8FD',
+    borderRadius: 9999,
+    paddingVertical: 10,
+  },
+  historyExportBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: THEME.colors.purple,
   },
 });

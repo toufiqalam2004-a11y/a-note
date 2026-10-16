@@ -35,6 +35,12 @@ export function calculateClientMetrics(
     unusedBudget,
     totalBudget: safeBudget,
     ratePerVideo: safeRate,
+    // Explicit business aliases
+    paymentReceived: safeBudget,
+    videoCapacity: totalVideos,
+    unusedPaymentBalance: unusedBudget,
+    moneyEarned: completedValue,
+    pendingWorkValue: remainingValue,
   };
 }
 
@@ -75,3 +81,50 @@ export function formatCurrency(amount: number): string {
     return `₹${Math.round(amount)}`;
   }
 }
+
+/**
+ * Formats ISO timestamp to human-readable date (e.g. 15 Oct 2026)
+ */
+export function formatDate(isoString?: string | null): string {
+  if (!isoString) return '-';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    return d.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return isoString;
+  }
+}
+
+/**
+ * Formats ISO timestamp to human-readable time (e.g. 04:00 PM)
+ */
+export function formatTime(isoString?: string | null): string {
+  if (!isoString) return '-';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Formats ISO timestamp to combined date and time
+ */
+export function formatDateTime(isoString?: string | null): string {
+  if (!isoString) return '-';
+  const d = formatDate(isoString);
+  const t = formatTime(isoString);
+  return t ? `${d}, ${t}` : d;
+}
+

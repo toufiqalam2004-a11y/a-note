@@ -1,0 +1,88 @@
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { THEME } from '../constants/theme';
+
+interface OverallProgressCardProps {
+  completedVideos: number;
+  totalVideos: number;
+}
+
+export const OverallProgressCard: React.FC<OverallProgressCardProps> = ({
+  completedVideos,
+  totalVideos,
+}) => {
+  const percentage =
+    totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
+
+  return (
+    <View style={styles.card}>
+      {/* Top Header Row */}
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Overall Progress</Text>
+        <Text style={styles.percentText}>{percentage}%</Text>
+      </View>
+
+      {/* Progress Track */}
+      <View style={styles.track}>
+        <View style={[styles.fill, { width: `${Math.min(100, percentage)}%` }]} />
+      </View>
+
+      {/* Subtitle */}
+      <Text style={styles.subtitle}>
+        {completedVideos} of {totalVideos} {totalVideos === 1 ? 'video' : 'videos'} completed
+      </Text>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    marginHorizontal: THEME.spacing.lg,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: THEME.colors.shadowColor,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: THEME.colors.textNavy,
+    letterSpacing: -0.2,
+  },
+  percentText: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: THEME.colors.textNavy,
+  },
+  track: {
+    height: 10,
+    backgroundColor: '#EAE4F5',
+    borderRadius: 5,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  fill: {
+    height: '100%',
+    backgroundColor: THEME.colors.mint,
+    borderRadius: 5,
+  },
+  subtitle: {
+    fontSize: THEME.typography.sizes.xs,
+    color: THEME.colors.textMuted,
+    fontWeight: '600',
+  },
+});

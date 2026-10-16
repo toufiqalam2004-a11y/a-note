@@ -12,106 +12,66 @@ interface DashboardSummaryCardsProps {
 export const DashboardSummaryCards: React.FC<DashboardSummaryCardsProps> = ({
   summary,
 }) => {
-  const completionPercentage =
-    summary.totalVideos > 0
-      ? Math.round((summary.completedVideos / summary.totalVideos) * 100)
-      : 0;
-
   return (
-    <View style={styles.container}>
-      {/* Section Header */}
-      <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionTitle}>Overview</Text>
-        <View style={styles.completionPill}>
-          <Text style={styles.completionPillText}>
-            {completionPercentage}% Delivered
+    <View style={styles.gridContainer}>
+      {/* Row 1 */}
+      <View style={styles.cardsRow}>
+        {/* Card 1: Total Videos */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.iconCircle, styles.purpleIconBg]}>
+              <Ionicons name="videocam" size={16} color={THEME.colors.purple} />
+            </View>
+            <Text style={styles.cardLabel}>Total Videos</Text>
+          </View>
+          <Text style={styles.cardNumber}>{summary.totalVideos}</Text>
+          <Text style={styles.cardSubText}>Across all clients</Text>
+        </View>
+
+        {/* Card 2: Completed */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.iconCircle, styles.mintIconBg]}>
+              <Ionicons name="checkmark" size={16} color={THEME.colors.mint} />
+            </View>
+            <Text style={styles.cardLabel}>Completed</Text>
+          </View>
+          <Text style={styles.cardNumber}>{summary.completedVideos}</Text>
+          <Text style={[styles.cardSubText, styles.mintSubText]}>
+            {formatCurrency(summary.completedValue)} earned
           </Text>
         </View>
       </View>
 
-      {/* Primary 4 Cards Grid */}
-      <View style={styles.grid}>
-        {/* Total Videos */}
+      {/* Row 2 */}
+      <View style={styles.cardsRow}>
+        {/* Card 3: Remaining */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardLabel}>Total Videos</Text>
-            <View style={[styles.iconCircle, { backgroundColor: 'rgba(255, 255, 255, 0.06)' }]}>
-              <Ionicons name="videocam-outline" size={14} color={THEME.colors.textSecondary} />
+            <View style={[styles.iconCircle, styles.amberIconBg]}>
+              <Ionicons name="time" size={16} color={THEME.colors.amber} />
             </View>
-          </View>
-          <Text style={styles.cardNumber}>{summary.totalVideos}</Text>
-          <Text style={styles.cardSubtext}>Across all clients</Text>
-        </View>
-
-        {/* Completed */}
-        <View style={[styles.card, styles.highlightCard]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardLabel, { color: THEME.colors.mint }]}>Completed</Text>
-            <View style={[styles.iconCircle, { backgroundColor: THEME.colors.mintGlow }]}>
-              <Ionicons name="checkmark-done" size={14} color={THEME.colors.mint} />
-            </View>
-          </View>
-          <Text style={[styles.cardNumber, { color: THEME.colors.mint }]}>
-            {summary.completedVideos}
-          </Text>
-          <Text style={styles.cardSubtext}>
-            {formatCurrency(summary.completedValue)} earned
-          </Text>
-        </View>
-
-        {/* Remaining */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
             <Text style={styles.cardLabel}>Remaining</Text>
-            <View style={[styles.iconCircle, { backgroundColor: 'rgba(255, 255, 255, 0.06)' }]}>
-              <Ionicons name="time-outline" size={14} color={THEME.colors.textSecondary} />
-            </View>
           </View>
           <Text style={styles.cardNumber}>{summary.remainingVideos}</Text>
-          <Text style={styles.cardSubtext}>
+          <Text style={styles.cardSubText}>
             {formatCurrency(summary.remainingValue)} pending
           </Text>
         </View>
 
-        {/* Total Value */}
+        {/* Card 4: Total Payment */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardLabel}>Total Value</Text>
-            <View style={[styles.iconCircle, { backgroundColor: 'rgba(255, 255, 255, 0.06)' }]}>
-              <Ionicons name="wallet-outline" size={14} color={THEME.colors.textSecondary} />
+            <View style={[styles.iconCircle, styles.walletIconBg]}>
+              <Ionicons name="wallet" size={16} color={THEME.colors.purple} />
             </View>
+            <Text style={styles.cardLabel}>Total Payment</Text>
           </View>
-          <Text style={styles.cardNumber}>{formatCurrency(summary.totalValue)}</Text>
-          <Text style={styles.cardSubtext}>Combined budgets</Text>
-        </View>
-      </View>
-
-      {/* Financial breakdown row */}
-      <View style={styles.breakdownRow}>
-        <View style={styles.breakdownItem}>
-          <Text style={styles.breakdownLabel}>Completed Value</Text>
-          <Text style={[styles.breakdownValue, { color: THEME.colors.mint }]}>
-            {formatCurrency(summary.completedValue)}
+          <Text style={styles.cardNumberCompact}>
+            {formatCurrency(summary.totalValue)}
           </Text>
-        </View>
-
-        <View style={styles.breakdownDivider} />
-
-        <View style={styles.breakdownItem}>
-          <Text style={styles.breakdownLabel}>Remaining Value</Text>
-          <Text style={styles.breakdownValue}>
-            {formatCurrency(summary.remainingValue)}
-          </Text>
-        </View>
-
-        <View style={styles.breakdownDivider} />
-
-        <View style={styles.breakdownItem}>
-          <View style={styles.unusedHeader}>
-            <Text style={styles.breakdownLabel}>Unused Budget</Text>
-          </View>
-          <Text style={[styles.breakdownValue, { color: THEME.colors.amber }]}>
-            {formatCurrency(summary.totalUnusedBudget)}
+          <Text style={styles.cardSubText}>
+            {formatCurrency(summary.totalUnusedBudget)} unused
           </Text>
         </View>
       </View>
@@ -120,120 +80,78 @@ export const DashboardSummaryCards: React.FC<DashboardSummaryCardsProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
+  gridContainer: {
     paddingHorizontal: THEME.spacing.lg,
-    paddingTop: THEME.spacing.md,
-    paddingBottom: THEME.spacing.sm,
+    marginBottom: 16,
+    gap: 12,
   },
-  sectionHeaderRow: {
+  cardsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: THEME.spacing.md,
-  },
-  sectionTitle: {
-    fontSize: THEME.typography.sizes.lg,
-    fontWeight: '700',
-    color: THEME.colors.textPrimary,
-  },
-  completionPill: {
-    backgroundColor: THEME.colors.mintGlow,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: THEME.radius.full,
-    borderWidth: 1,
-    borderColor: THEME.colors.mintBorder,
-  },
-  completionPillText: {
-    fontSize: THEME.typography.sizes.xs,
-    fontWeight: '700',
-    color: THEME.colors.mint,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: THEME.spacing.sm,
+    gap: 12,
   },
   card: {
-    flexBasis: '48%',
-    flexGrow: 1,
-    backgroundColor: THEME.colors.surface,
-    padding: THEME.spacing.md,
-    borderRadius: THEME.radius.lg,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-  },
-  highlightCard: {
-    borderColor: THEME.colors.mintBorder,
-    backgroundColor: THEME.colors.surfaceElevated,
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: THEME.colors.shadowColor,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 4,
   },
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
-  },
-  cardLabel: {
-    fontSize: THEME.typography.sizes.xs,
-    fontWeight: '600',
-    color: THEME.colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    gap: 8,
+    marginBottom: 10,
   },
   iconCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  purpleIconBg: {
+    backgroundColor: THEME.colors.purpleLight,
+  },
+  mintIconBg: {
+    backgroundColor: THEME.colors.mintLight,
+  },
+  amberIconBg: {
+    backgroundColor: THEME.colors.amberLight,
+  },
+  walletIconBg: {
+    backgroundColor: THEME.colors.purpleLight,
+  },
+  cardLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: THEME.colors.textMuted,
+  },
   cardNumber: {
-    fontSize: THEME.typography.sizes.xl,
+    fontSize: 24,
     fontWeight: '800',
-    color: THEME.colors.textPrimary,
+    color: THEME.colors.textNavy,
     letterSpacing: -0.5,
-    marginVertical: 2,
   },
-  cardSubtext: {
-    fontSize: THEME.typography.sizes.xs,
+  cardNumberCompact: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: THEME.colors.textNavy,
+    letterSpacing: -0.5,
+  },
+  cardSubText: {
+    fontSize: 11,
+    fontWeight: '500',
     color: THEME.colors.textMuted,
+    marginTop: 4,
   },
-  breakdownRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: THEME.colors.surfaceSubtle,
-    borderRadius: THEME.radius.md,
-    paddingVertical: THEME.spacing.sm,
-    paddingHorizontal: THEME.spacing.md,
-    marginTop: THEME.spacing.sm,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-  },
-  breakdownItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  breakdownDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: THEME.colors.border,
-  },
-  unusedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  breakdownLabel: {
-    fontSize: 10,
-    color: THEME.colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 2,
-  },
-  breakdownValue: {
-    fontSize: THEME.typography.sizes.sm,
+  mintSubText: {
+    color: THEME.colors.mint,
     fontWeight: '700',
-    color: THEME.colors.textPrimary,
   },
 });

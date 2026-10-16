@@ -31,7 +31,7 @@ export function getNativeSpeechModule(): any | null {
   try {
     // Check if the native binary actually contains the native module.
     // In Expo Go, this returns null safely.
-    // In a custom Development Build (APK), this returns the native module.
+    // In a custom Development Build (APK) or Release APK, this returns the native module.
     const nativeModule = requireOptionalNativeModule('ExpoSpeechRecognition');
     if (!nativeModule) {
       cachedModule = null;
@@ -57,6 +57,122 @@ export function isNativeSpeechAvailable(): boolean {
 }
 
 /**
+ * Query supported and installed locales from the Android speech service
+ */
+export async function getSupportedSpeechLocales(): Promise<{
+  locales: string[];
+  installedLocales: string[];
+}> {
+  const mod = getNativeSpeechModule();
+  if (!mod || typeof mod.getSupportedLocales !== 'function') {
+    return { locales: [], installedLocales: [] };
+  }
+
+  try {
+    const result = await mod.getSupportedLocales({});
+    return {
+      locales: result.locales || [],
+      installedLocales: result.installedLocales || [],
+    };
+  } catch (e) {
+    console.warn('[EditFlow Speech] getSupportedLocales warning:', e);
+    return { locales: [], installedLocales: [] };
+  }
+}
+
+export interface OptimalLocaleInfo {
+  locale: string;
+  isInstalled: boolean;
+  displayName: string;
+}
+
+/**
+ * Resolves the optimal English locale for speech recognition.
+ * Strategy:
+ * 1. Checks installed and supported locales on device.
+ * 2. Prefers English (India) 'en-IN' if installed.
+ * 3. If 'en-IN' is not downloaded yet, checks if any other English locale is already installed (e.g. 'en-US', 'en-GB').
+ * 4. If 'en-IN' is supported but not downloaded, returns 'en-IN' with isInstalled=false.
+ * 5. Falls back to 'en-IN' as default preferred target.
+ */
+export async function getOptimalSpeechLocale(): Promise<OptimalLocaleInfo> {
+  const { locales, installedLocales } = await getSupportedSpeechLocales();
+
+  // Normalize helper
+  const matches = (list: string[], tag: string) =>
+    list.some((l) => l.toLowerCase().replace(/_/g, '-') === tag.toLowerCase());
+
+  // 1. Is en-IN already installed on device?
+  if (matches(installedLocales, 'en-IN')) {
+    return {
+      locale: 'en-IN',
+      isInstalled: true,
+      displayName: 'English (India)',
+    };
+  }
+
+  // 2. Is any other English locale installed?
+  const installedEnglish = installedLocales.find((l) =>
+    l.toLowerCase().startsWith('en')
+  );
+  if (installedEnglish) {
+    const clean = installedEnglish.replace(/_/g, '-');
+    const name = clean === 'en-US' ? 'English (US)' : clean === 'en-GB' ? 'English (UK)' : `English (${clean})`;
+    return {
+      locale: clean,
+      isInstalled: true,
+      displayName: name,
+    };
+  }
+
+  // 3. Is en-IN in supported locales (even if not yet downloaded)?
+  if (matches(locales, 'en-IN')) {
+    return {
+      locale: 'en-IN',
+      isInstalled: false,
+      displayName: 'English (India)',
+    };
+  }
+
+  // 4. Default to en-IN as preferred Indian English locale
+  return {
+    locale: 'en-IN',
+    isInstalled: false,
+    displayName: 'English (India)',
+  };
+}
+
+/**
+ * Triggers Android offline model download if supported (Android 13+)
+ */
+export async function triggerOfflineSpeechModelDownload(locale: string): Promise<{
+  status: string;
+  message: string;
+}> {
+  const mod = getNativeSpeechModule();
+  if (!mod || typeof mod.androidTriggerOfflineModelDownload !== 'function') {
+    return {
+      status: 'unsupported',
+      message: 'Offline language model download API is not available on this Android version.',
+    };
+  }
+
+  try {
+    const res = await mod.androidTriggerOfflineModelDownload({ locale });
+    return {
+      status: res.status,
+      message: res.message || 'Offline language model download requested.',
+    };
+  } catch (err: any) {
+    console.warn('[EditFlow Speech] triggerOfflineModelDownload error:', err);
+    return {
+      status: 'error',
+      message: err.message || 'Could not initiate offline language download.',
+    };
+  }
+}
+
+/**
  * Request microphone & speech recognition permissions safely
  */
 export async function requestSpeechPermissions(): Promise<{
@@ -69,7 +185,7 @@ export async function requestSpeechPermissions(): Promise<{
       return {
         granted: false,
         message:
-          'Expo Go detected: Third-party native modules are not bundled in Expo Go. A custom development build (npx expo run:android) is required for hardware speech recognition.',
+          'Expo Go detected: Third-party native modules are not bundled in Expo Go. A custom development build or standalone APK is required for hardware speech recognition.',
       };
     }
     return {
@@ -97,6 +213,7 @@ export function startSpeechRecognition(options: {
   interimResults?: boolean;
   continuous?: boolean;
   addsPunctuation?: boolean;
+  requiresOnDeviceRecognition?: boolean;
 }): void {
   const mod = getNativeSpeechModule();
   if (!mod) {

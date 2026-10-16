@@ -61,11 +61,18 @@ export const VoiceToast: React.FC<VoiceToastProps> = ({
         { transform: [{ translateY }], opacity },
       ]}
     >
-      <Ionicons
-        name={isError ? 'alert-circle' : 'checkmark-circle'}
-        size={20}
-        color={isError ? THEME.colors.danger : THEME.colors.mint}
-      />
+      <View
+        style={[
+          styles.iconBadge,
+          isError ? styles.iconBadgeError : styles.iconBadgeSuccess,
+        ]}
+      >
+        <Ionicons
+          name={isError ? 'alert-circle' : 'checkmark-circle'}
+          size={18}
+          color={isError ? THEME.colors.danger : THEME.colors.mint}
+        />
+      </View>
       <Text style={styles.toastText} numberOfLines={2}>
         {message}
       </Text>
@@ -82,28 +89,42 @@ const styles = StyleSheet.create({
     zIndex: 9999,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: THEME.radius.lg,
-    backgroundColor: THEME.colors.surfaceElevated,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
+    paddingVertical: 14,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: THEME.colors.shadowColor,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
     elevation: 8,
+  },
+  iconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBadgeSuccess: {
+    backgroundColor: THEME.colors.mintLight,
+  },
+  iconBadgeError: {
+    backgroundColor: THEME.colors.dangerLight,
   },
   toastSuccess: {
     borderColor: THEME.colors.mintBorder,
   },
   toastError: {
-    borderColor: 'rgba(239, 68, 68, 0.4)',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
   },
   toastText: {
     flex: 1,
-    fontSize: THEME.typography.sizes.xs,
-    fontWeight: '600',
-    color: THEME.colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+    color: THEME.colors.textNavy,
   },
 });

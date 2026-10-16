@@ -5,8 +5,8 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#0D0F12",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F0EBF8",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.editflow.app",
@@ -19,7 +19,7 @@
       "package": "com.editflow.app",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#0D0F12",
+        "backgroundColor": "#F0EBF8",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -43,7 +43,8 @@
           "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to recognize your voice for client and video tracking."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-sharing"
     ],
     "extra": {
       "eas": {

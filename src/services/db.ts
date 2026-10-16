@@ -38,6 +38,28 @@ export async function getDbInstance(): Promise<SQLite.SQLiteDatabase | null> {
 }
 
 /**
+ * Safe database migrations to adapt schema without losing user data
+ */
+async function runDatabaseMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
+  try {
+    // 1. Verify videos table columns
+    const videoCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(videos);');
+    const hasCompletedAt = videoCols.some((col) => col.name === 'completed_at');
+    if (!hasCompletedAt) {
+      await db.execAsync('ALTER TABLE videos ADD COLUMN completed_at TEXT;');
+    }
+
+    // 2. Add performance indices if not exists
+    await db.execAsync(`
+      CREATE INDEX IF NOT EXISTS idx_videos_client_num ON videos(client_id, video_number);
+      CREATE INDEX IF NOT EXISTS idx_hist_client_date ON completion_history(client_id, completed_date);
+    `);
+  } catch (err) {
+    console.warn('[EditFlow DB] Migration note:', err);
+  }
+}
+
+/**
  * Initializes database tables and seeds sample data if fresh
  */
 export async function initDatabase(): Promise<void> {
@@ -76,6 +98,9 @@ export async function initDatabase(): Promise<void> {
         );
       `);
 
+      // Run non-destructive schema migrations
+      await runDatabaseMigrations(db);
+
       // Check if table is empty, seed initial sample client
       const countResult = await db.getFirstAsync<{ count: number }>(
         'SELECT COUNT(*) as count FROM clients;'
@@ -105,51 +130,107 @@ async function seedInitialData(): Promise<void> {
   const db = sqliteDbInstance;
   if (!db) return;
 
-  const clientId = 'client_rahul_demo';
-  const name = 'Rahul';
-  const totalBudget = 10000;
-  const ratePerVideo = 800;
-  const createdAt = new Date().toISOString();
+  const now = new Date();
+  const sampleTitles = [
+    'Cinematic Edit',
+    'Short Edit',
+    'Football Edit',
+    'Highlight Reel',
+    'Short Edit',
+    'Cinematic Edit',
+    'Vlog Cut',
+    'Commercial Promo',
+    'Documentary Intro',
+    'Reels Montage',
+    'Color Grade Cut',
+    'Final Master',
+  ];
+
+  // 1. Rahul (12 videos, 3 completed: 25%)
+  const client1Id = 'client_rahul_demo';
+  const name1 = 'Rahul';
+  const totalBudget1 = 10000;
+  const ratePerVideo1 = 800;
+  const createdAt1 = now.toISOString();
 
   await db.runAsync(
-    'INSERT INTO clients (id, name, total_budget, rate_per_video, created_at) VALUES (?, ?, ?, ?, ?);',
-    clientId,
-    name,
-    totalBudget,
-    ratePerVideo,
-    createdAt
+    'INSERT OR IGNORE INTO clients (id, name, total_budget, rate_per_video, created_at) VALUES (?, ?, ?, ?, ?);',
+    client1Id,
+    name1,
+    totalBudget1,
+    ratePerVideo1,
+    createdAt1
   );
 
-  const totalVideos = Math.floor(totalBudget / ratePerVideo); // 12
-  for (let i = 1; i <= totalVideos; i++) {
-    const videoId = `video_${clientId}_${i}`;
-    const isCompleted = i <= 2 ? 1 : 0; // First 2 completed for demonstration
-    const completedAt = isCompleted ? new Date().toISOString() : null;
+  const totalVideos1 = Math.floor(totalBudget1 / ratePerVideo1); // 12
+  for (let i = 1; i <= totalVideos1; i++) {
+    const videoId = `video_${client1Id}_${i}`;
+    const isCompleted = i <= 3 ? 1 : 0; // 3 completed (25%)
+    const completedAt = isCompleted
+      ? new Date(now.getTime() - (4 - i) * 86400000).toISOString()
+      : null;
+    const title = sampleTitles[i - 1] || `Video ${i}`;
 
     await db.runAsync(
-      'INSERT INTO videos (id, client_id, video_number, title, is_completed, completed_at) VALUES (?, ?, ?, ?, ?, ?);',
+      'INSERT OR IGNORE INTO videos (id, client_id, video_number, title, is_completed, completed_at) VALUES (?, ?, ?, ?, ?, ?);',
       videoId,
-      clientId,
+      client1Id,
       i,
-      `Video ${i}`,
+      title,
       isCompleted,
       completedAt
     );
 
     if (isCompleted) {
-      const historyId = `hist_${clientId}_${i}`;
-      const today = new Date().toISOString().split('T')[0];
+      const historyId = `hist_${client1Id}_${i}`;
+      const completedDate = completedAt!.split('T')[0];
       await db.runAsync(
-        'INSERT INTO completion_history (id, client_id, client_name, video_id, video_number, completed_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?);',
+        'INSERT OR IGNORE INTO completion_history (id, client_id, client_name, video_id, video_number, completed_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?);',
         historyId,
-        clientId,
-        name,
+        client1Id,
+        name1,
         videoId,
         i,
-        today,
-        new Date().toISOString()
+        completedDate,
+        completedAt!
       );
     }
+  }
+
+  // 2. Priya (8 videos, 4 completed: 50%)
+  const client2Id = 'client_priya_demo';
+  const name2 = 'Priya';
+  const totalBudget2 = 8000;
+  const ratePerVideo2 = 1000;
+  const createdAt2 = now.toISOString();
+
+  await db.runAsync(
+    'INSERT OR IGNORE INTO clients (id, name, total_budget, rate_per_video, created_at) VALUES (?, ?, ?, ?, ?);',
+    client2Id,
+    name2,
+    totalBudget2,
+    ratePerVideo2,
+    createdAt2
+  );
+
+  const totalVideos2 = Math.floor(totalBudget2 / ratePerVideo2); // 8
+  for (let i = 1; i <= totalVideos2; i++) {
+    const videoId = `video_${client2Id}_${i}`;
+    const isCompleted = i <= 4 ? 1 : 0;
+    const completedAt = isCompleted
+      ? new Date(now.getTime() - (5 - i) * 86400000).toISOString()
+      : null;
+    const title = sampleTitles[i - 1] || `Video ${i}`;
+
+    await db.runAsync(
+      'INSERT OR IGNORE INTO videos (id, client_id, video_number, title, is_completed, completed_at) VALUES (?, ?, ?, ?, ?, ?);',
+      videoId,
+      client2Id,
+      i,
+      title,
+      isCompleted,
+      completedAt
+    );
   }
 }
 
@@ -395,7 +476,7 @@ export async function addClient(
 }
 
 /**
- * Toggle completion status of a video
+ * Toggle completion status of a video with duplicate completion prevention
  */
 export async function toggleVideoStatus(
   videoId: string,
@@ -409,6 +490,25 @@ export async function toggleVideoStatus(
 
   if (db && isSQLiteAvailable) {
     try {
+      // 1. Prevent duplicate completion: check current state in SQLite
+      const existing = await db.getFirstAsync<{ is_completed: number }>(
+        'SELECT is_completed FROM videos WHERE id = ?;',
+        videoId
+      );
+
+      if (existing) {
+        const currentlyCompleted = existing.is_completed === 1;
+        if (newCompletedStatus && currentlyCompleted) {
+          // Already marked completed; avoid duplicate insert/update
+          return;
+        }
+        if (!newCompletedStatus && !currentlyCompleted) {
+          // Already pending; no-op
+          return;
+        }
+      }
+
+      // 2. Perform safe update
       await db.runAsync(
         'UPDATE videos SET is_completed = ?, completed_at = ? WHERE id = ?;',
         newCompletedStatus ? 1 : 0,
@@ -417,7 +517,7 @@ export async function toggleVideoStatus(
       );
 
       if (newCompletedStatus) {
-        const histId = 'hist_' + Date.now();
+        const histId = 'hist_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
         const today = new Date().toISOString().split('T')[0];
         await db.runAsync(
           'INSERT INTO completion_history (id, client_id, client_name, video_id, video_number, completed_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?);',
@@ -427,8 +527,11 @@ export async function toggleVideoStatus(
           videoId,
           videoNumber,
           today,
-          new Date().toISOString()
+          completedAt!
         );
+      } else {
+        // Unmarking video: remove record from completion history
+        await db.runAsync('DELETE FROM completion_history WHERE video_id = ?;', videoId);
       }
     } catch (e) {
       console.warn('[EditFlow DB] Error toggling video status:', e);
@@ -496,7 +599,7 @@ export async function deleteClient(clientId: string): Promise<void> {
 }
 
 /**
- * Get daily completion history records
+ * Get daily completion history records across all clients
  */
 export async function getCompletionHistory(): Promise<CompletionHistoryEntry[]> {
   const db = await getDbInstance();
@@ -510,7 +613,7 @@ export async function getCompletionHistory(): Promise<CompletionHistoryEntry[]> 
         video_number: number;
         completed_date: string;
         created_at: string;
-      }>('SELECT * FROM completion_history ORDER BY created_at DESC LIMIT 50;');
+      }>('SELECT * FROM completion_history ORDER BY created_at DESC LIMIT 100;');
 
       return rows.map((r) => ({
         id: r.id,
@@ -526,4 +629,68 @@ export async function getCompletionHistory(): Promise<CompletionHistoryEntry[]> 
     }
   }
   return [];
+}
+
+/**
+ * Get client-specific completion history filtered by date range
+ */
+export async function getClientCompletionHistory(
+  clientId: string,
+  dateRange: 'all' | 'today' | 'last7' | 'last30' = 'all'
+): Promise<CompletionHistoryEntry[]> {
+  const db = await getDbInstance();
+  if (db && isSQLiteAvailable) {
+    try {
+      let query = 'SELECT * FROM completion_history WHERE client_id = ?';
+      const params: any[] = [clientId];
+
+      const now = new Date();
+      if (dateRange === 'today') {
+        const todayStr = now.toISOString().split('T')[0];
+        query += ' AND completed_date = ?';
+        params.push(todayStr);
+      } else if (dateRange === 'last7') {
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        query += ' AND completed_date >= ?';
+        params.push(sevenDaysAgo);
+      } else if (dateRange === 'last30') {
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        query += ' AND completed_date >= ?';
+        params.push(thirtyDaysAgo);
+      }
+
+      query += ' ORDER BY created_at DESC;';
+
+      const rows = await db.getAllAsync<{
+        id: string;
+        client_id: string;
+        client_name: string;
+        video_id: string;
+        video_number: number;
+        completed_date: string;
+        created_at: string;
+      }>(query, ...params);
+
+      return rows.map((r) => ({
+        id: r.id,
+        clientId: r.client_id,
+        clientName: r.client_name,
+        videoId: r.video_id,
+        videoNumber: r.video_number,
+        completedDate: r.completed_date,
+        createdAt: r.created_at,
+      }));
+    } catch (e) {
+      console.warn('[EditFlow DB] Error reading client history from SQLite:', e);
+    }
+  }
+  return [];
+}
+
+/**
+ * Fetch a single client with videos and calculated metrics
+ */
+export async function getClientById(clientId: string): Promise<ClientWithVideos | null> {
+  const all = await getClientsWithVideos();
+  return all.find((c) => c.id === clientId) || null;
 }

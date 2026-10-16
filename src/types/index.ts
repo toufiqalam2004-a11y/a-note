@@ -16,14 +16,20 @@ export interface VideoItem {
 }
 
 export interface ClientCalculations {
-  totalVideos: number;
+  totalVideos: number; // Video capacity = floor(payment / rate)
   completedVideos: number;
   remainingVideos: number;
-  completedValue: number;
-  remainingValue: number;
-  unusedBudget: number;
-  totalBudget: number;
-  ratePerVideo: number;
+  completedValue: number; // Money earned through completed videos
+  remainingValue: number; // Pending work value
+  unusedBudget: number; // Unused payment balance = payment % rate
+  totalBudget: number; // Payment received
+  ratePerVideo: number; // Agreed rate per video
+  // Explicit aliases matching business requirements
+  paymentReceived: number;
+  videoCapacity: number;
+  unusedPaymentBalance: number;
+  moneyEarned: number;
+  pendingWorkValue: number;
 }
 
 export interface ClientWithVideos extends Client {
@@ -47,14 +53,23 @@ export interface CompletionHistoryEntry {
   clientName: string;
   videoId: string;
   videoNumber: number;
-  completedDate: string;
-  createdAt: string;
+  completedDate: string; // YYYY-MM-DD
+  createdAt: string; // ISO 8601 full timestamp
+  timeFormatted?: string;
 }
 
-export type VoiceState = 'idle' | 'listening' | 'processing' | 'success' | 'error';
+export type HistoryDateFilter = 'all' | 'today' | 'last7' | 'last30';
+export type HistoryStatusFilter = 'all' | 'completed' | 'remaining';
+
+export interface ExportReportOptions {
+  dateRange: HistoryDateFilter;
+  includeCompletedOnly?: boolean;
+}
+
+export type VoiceState = 'idle' | 'listening' | 'processing' | 'confirmation' | 'success' | 'error';
 
 export interface PendingVoiceAction {
-  type: 'ADD_CLIENT' | 'COMPLETE_VIDEO';
+  type: 'ADD_CLIENT' | 'COMPLETE_VIDEO' | 'NAVIGATE';
   description: string;
   clientName: string;
   clientId?: string;
@@ -63,3 +78,4 @@ export interface PendingVoiceAction {
   videoNumber?: number;
   videoId?: string;
 }
+

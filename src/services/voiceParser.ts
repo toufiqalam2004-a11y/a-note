@@ -4,7 +4,7 @@ export interface ParseResult {
   success: boolean;
   message: string;
   actionType: 'ADD_CLIENT' | 'COMPLETE_VIDEO' | 'NAVIGATE' | 'QUERY' | 'UNKNOWN';
-  targetScreen?: 'dashboard' | 'clients';
+  targetScreen?: 'dashboard' | 'clients' | 'new_client';
   pendingAction?: PendingVoiceAction;
   isAmbiguous?: boolean;
   ambiguityPrompt?: string;
@@ -156,9 +156,48 @@ export function parseVoiceCommand(
     };
   }
 
-  const lower = transcript.toLowerCase();
+  // Sanitize punctuation at the end for consistent matching
+  const lower = transcript.toLowerCase().replace(/[.,!?;:]+$/, '').trim();
 
-  // 1. Navigation / Query commands
+  // 1. Specific Client Navigation: "Show client Rahul", "Open client Rahul"
+  const showClientMatch = lower.match(/(?:show|open|view|go\s+to)\s+client\s+([^,]+)/i);
+  if (showClientMatch) {
+    const rawTarget = showClientMatch[1].trim().replace(/[.,!?:;]/g, '');
+    const match = findMatchingClient(rawTarget, clients);
+    if (match.client) {
+      return {
+        success: true,
+        message: `Opening details for client ${match.client.name}.`,
+        actionType: 'NAVIGATE',
+        targetScreen: 'dashboard',
+        matchedClient: match.client,
+      };
+    }
+    if (match.isAmbiguous) {
+      return {
+        success: false,
+        isAmbiguous: true,
+        ambiguityPrompt: `Multiple clients matched "${rawTarget}". Which one do you want to view? Candidates: ${match.candidates.map((c) => c.name).join(', ')}`,
+        message: `Ambiguous client name "${rawTarget}".`,
+        actionType: 'QUERY',
+      };
+    }
+  }
+
+  // 2. Navigation / Query commands
+  if (
+    lower === 'new client' ||
+    lower === 'add client' ||
+    lower === 'create client'
+  ) {
+    return {
+      success: true,
+      message: 'Opening Add Client modal. You can also say: "Add client Rahul, rate 800, payment 10000".',
+      actionType: 'NAVIGATE',
+      targetScreen: 'new_client',
+    };
+  }
+
   if (
     lower.includes('show remaining') ||
     lower.includes('show remaining videos') ||
@@ -180,7 +219,8 @@ export function parseVoiceCommand(
     lower.includes('show clients') ||
     lower.includes('open clients') ||
     lower.includes('go to clients') ||
-    lower.includes('client list')
+    lower.includes('client list') ||
+    lower === 'clients'
   ) {
     return {
       success: true,
@@ -194,7 +234,9 @@ export function parseVoiceCommand(
     lower.includes('show dashboard') ||
     lower.includes('go to home') ||
     lower.includes('open home') ||
-    lower.includes('open dashboard')
+    lower.includes('open dashboard') ||
+    lower === 'home' ||
+    lower === 'dashboard'
   ) {
     return {
       success: true,
@@ -205,42 +247,35 @@ export function parseVoiceCommand(
   }
 
   // 2. Add client command:
-  // "Add client Rahul, budget ten thousand, rate eight hundred."
-  // "Add client Priya with budget 15000 and rate 1200"
+  // "Add client Rahul, rate 800, payment 10000"
+  // "Add client Rahul, payment 10000, rate 800"
+  // "Add client Rahul, budget 10000, rate 800"
   // "New client Amit budget 5000 rate 500"
   const addClientMatch = lower.match(/(?:add|new|create)\s+client\s+([^,]+)/i);
   if (addClientMatch) {
-    const rest = lower.substring(addClientMatch.index! + addClientMatch[0].length);
-
-    // Extract name: text between "add client" and "budget"
-    let clientName = '';
-    const budgetIndex = rest.indexOf('budget');
-
-    if (budgetIndex !== -1) {
-      clientName = rest.substring(0, budgetIndex).replace(/^(with|named|for)\s+/i, '').trim();
-    } else {
-      // Look for comma
-      const parts = rest.split(',');
-      clientName = parts[0].trim();
+    let rawName = addClientMatch[1].trim();
+    const firstKeywordIndex = rawName.search(/(?:,|rate|budget|payment|advance|with)/i);
+    if (firstKeywordIndex !== -1) {
+      rawName = rawName.substring(0, firstKeywordIndex).trim();
     }
 
-    // Clean client name
-    clientName = clientName
+    let clientName = rawName
+      .replace(/^(with|named|for)\s+/i, '')
       .replace(/[.,!?:;]/g, '')
       .split(' ')
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ')
       .trim();
 
-    // Extract budget
-    const budgetMatch = rest.match(/budget\s+([a-zA-Z0-9,\s₹$]+?)(?:rate|per|\band\b|$)/i);
+    // Extract budget or payment from the rest of the text
+    const budgetMatch = lower.match(/(?:budget|payment|advance|total)\s*(?:of|is|:)?\s*([a-zA-Z0-9,\s₹$]+?)(?:,|rate|per|\band\b|$)/i);
     let budget: number | null = null;
     if (budgetMatch) {
       budget = wordsToNumber(budgetMatch[1]);
     }
 
-    // Extract rate
-    const rateMatch = rest.match(/(?:rate|per\s+video)\s+([a-zA-Z0-9,\s₹$]+)/i);
+    // Extract rate from the rest of the text
+    const rateMatch = lower.match(/(?:rate|per\s*video)\s*(?:of|is|:)?\s*([a-zA-Z0-9,\s₹$]+?)(?:,|budget|payment|advance|\band\b|$)/i);
     let rate: number | null = null;
     if (rateMatch) {
       rate = wordsToNumber(rateMatch[1]);
@@ -249,7 +284,7 @@ export function parseVoiceCommand(
     if (!clientName) {
       return {
         success: false,
-        message: 'Could not detect client name. Example: "Add client Rahul, budget 10000, rate 800"',
+        message: 'Could not detect client name. Example: "Add client Rahul, rate 800, payment 10000"',
         actionType: 'ADD_CLIENT',
       };
     }
@@ -257,7 +292,7 @@ export function parseVoiceCommand(
     if (!budget || budget <= 0) {
       return {
         success: false,
-        message: `Missing or invalid budget for ${clientName}. Please specify total budget.`,
+        message: `Missing or invalid payment for ${clientName}. Please specify total payment or budget.`,
         actionType: 'ADD_CLIENT',
       };
     }
@@ -271,15 +306,15 @@ export function parseVoiceCommand(
     }
 
     const calculatedVideos = Math.floor(budget / rate);
-    const unused = budget - calculatedVideos * rate;
+    const unused = budget % rate;
 
     return {
       success: true,
-      message: `Ready to add client ${clientName}: ₹${budget.toLocaleString('en-IN')} budget, ₹${rate}/video (${calculatedVideos} videos, ₹${unused} unused).`,
+      message: `Ready to add client ${clientName}: ₹${budget.toLocaleString('en-IN')} payment, ₹${rate}/video (${calculatedVideos} videos, ₹${unused} unused balance).`,
       actionType: 'ADD_CLIENT',
       pendingAction: {
         type: 'ADD_CLIENT',
-        description: `Add client ${clientName} with budget ₹${budget.toLocaleString('en-IN')} at ₹${rate}/video (${calculatedVideos} videos)`,
+        description: `Add client ${clientName} with payment ₹${budget.toLocaleString('en-IN')} at ₹${rate}/video (${calculatedVideos} videos, ₹${unused} balance)`,
         clientName,
         totalBudget: budget,
         ratePerVideo: rate,
@@ -288,29 +323,54 @@ export function parseVoiceCommand(
   }
 
   // 3. Complete video command:
-  // "Rahul, video one done"
+  // "Video five is done"
+  // "Video 5 is done"
+  // "Rahul, video five is done"
   // "Rahul, video 1 done"
   // "Rahul, video two completed"
-  // "Rahul video 3 finished"
   // "Video 4 done for Rahul"
-  const doneKeywords = ['done', 'completed', 'finished', 'complete', 'finish', 'check'];
+  const doneKeywords = ['done', 'completed', 'finished', 'complete', 'finish', 'check', 'checked'];
   const hasDoneKeyword = doneKeywords.some((k) => lower.includes(k));
 
   if (hasDoneKeyword) {
-    // Attempt format: "Video [number] done for [Client]"
-    const videoFirstMatch = lower.match(/video\s+([a-zA-Z0-9]+)\s+(?:done|completed|finished)\s+(?:for\s+)?([a-zA-Z0-9\s]+)/i);
     let potentialClientName = '';
     let potentialVideoStr = '';
+
+    // Check Format A: "Video [number] (is) (done|completed) for [Client]"
+    const videoFirstMatch = lower.match(/video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete)\s+(?:for\s+)?([a-zA-Z0-9\s]+)/i);
+
+    // Check Format B: "[Client][,] video [number] (is) (done|completed)"
+    const clientFirstMatch = lower.match(/([a-zA-Z0-9\s]+?)[,\s]+video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete)/i);
+
+    // Check Format C: "Video [number] (is) (done|completed)" (no client specified)
+    const videoOnlyMatch = lower.match(/^video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete)/i);
 
     if (videoFirstMatch) {
       potentialVideoStr = videoFirstMatch[1];
       potentialClientName = videoFirstMatch[2].trim();
-    } else {
-      // Format: "[Client][,] video [number] (done|completed|finished)"
-      const clientFirstMatch = lower.match(/([a-zA-Z0-9\s]+?)[,\s]+video\s+([a-zA-Z0-9]+)\s+(?:done|completed|finished|complete)/i);
-      if (clientFirstMatch) {
-        potentialClientName = clientFirstMatch[1].trim();
-        potentialVideoStr = clientFirstMatch[2].trim();
+    } else if (clientFirstMatch) {
+      potentialClientName = clientFirstMatch[1].trim();
+      potentialVideoStr = clientFirstMatch[2].trim();
+    } else if (videoOnlyMatch) {
+      potentialVideoStr = videoOnlyMatch[1];
+      if (clients.length === 1) {
+        // Automatically resolve to the single active client
+        potentialClientName = clients[0].name;
+      } else if (clients.length > 1) {
+        const vNum = wordsToNumber(potentialVideoStr);
+        return {
+          success: false,
+          isAmbiguous: true,
+          ambiguityPrompt: `Which client is Video ${vNum || potentialVideoStr} for? Available clients: ${clients.map((c) => c.name).join(', ')}`,
+          message: `Please specify the client name for Video ${vNum || potentialVideoStr}.`,
+          actionType: 'COMPLETE_VIDEO',
+        };
+      } else {
+        return {
+          success: false,
+          message: 'No clients available. Please add a client first.',
+          actionType: 'COMPLETE_VIDEO',
+        };
       }
     }
 
@@ -332,7 +392,7 @@ export function parseVoiceCommand(
         return {
           success: false,
           isAmbiguous: true,
-          ambiguityPrompt: `Multiple clients matched "${potentialClientName}". Please specify the full name.`,
+          ambiguityPrompt: `Multiple clients matched "${potentialClientName}". Please specify the full name. Candidates: ${match.candidates.map((c) => c.name).join(', ')}`,
           message: `Ambiguous client name. Matches: ${match.candidates.map((c) => c.name).join(', ')}`,
           actionType: 'COMPLETE_VIDEO',
         };

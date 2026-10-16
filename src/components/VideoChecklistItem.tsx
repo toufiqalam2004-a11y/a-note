@@ -20,7 +20,7 @@ export const VideoChecklistItem: React.FC<VideoChecklistItemProps> = ({
     <TouchableOpacity
       style={[styles.itemContainer, video.isCompleted && styles.itemCompleted]}
       onPress={() => onToggle(video)}
-      activeOpacity={0.7}
+      activeOpacity={0.75}
     >
       <View style={styles.leftGroup}>
         {/* Checkbox button */}
@@ -31,7 +31,7 @@ export const VideoChecklistItem: React.FC<VideoChecklistItemProps> = ({
           ]}
         >
           {video.isCompleted && (
-            <Ionicons name="checkmark" size={14} color="#0B0C0E" />
+            <Ionicons name="checkmark" size={14} color="#FFFFFF" />
           )}
         </View>
 
@@ -68,17 +68,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: THEME.colors.surfaceSubtle,
-    borderRadius: THEME.radius.md,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: THEME.colors.shadowColor,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   itemCompleted: {
-    backgroundColor: 'rgba(5, 214, 158, 0.04)',
-    borderColor: 'rgba(5, 214, 158, 0.2)',
+    backgroundColor: '#F9FBFB',
+    borderColor: 'rgba(0, 210, 135, 0.25)',
   },
   leftGroup: {
     flexDirection: 'row',
@@ -86,16 +91,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxUnchecked: {
     borderWidth: 1.5,
-    borderColor: THEME.colors.textMuted,
-    backgroundColor: THEME.colors.surface,
+    borderColor: '#D4C9E6',
+    backgroundColor: '#F7F3FC',
   },
   checkboxChecked: {
     backgroundColor: THEME.colors.mint,
@@ -104,36 +109,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   videoTitle: {
-    fontSize: THEME.typography.sizes.base,
-    fontWeight: '600',
-    color: THEME.colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+    color: THEME.colors.textNavy,
   },
   videoTitleCompleted: {
-    color: THEME.colors.textSecondary,
-    textDecorationLine: 'line-through',
+    color: THEME.colors.textMuted,
   },
   rateSubtitle: {
     fontSize: 11,
     color: THEME.colors.textMuted,
-    marginTop: 1,
+    marginTop: 2,
+    fontWeight: '500',
   },
   rightGroup: {
     alignItems: 'flex-end',
   },
   donePill: {
-    backgroundColor: THEME.colors.mintGlow,
+    backgroundColor: THEME.colors.mintLight,
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingVertical: 3,
+    borderRadius: 9999,
   },
   donePillText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
     color: THEME.colors.mint,
     letterSpacing: 0.5,
   },
   actionPrompt: {
     fontSize: 11,
     color: THEME.colors.textMuted,
+    fontWeight: '600',
   },
 });
