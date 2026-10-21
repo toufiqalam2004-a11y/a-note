@@ -43,6 +43,8 @@ import { ClientHistoryExportModal } from './src/components/ClientHistoryExportMo
 import { SplashAnimation } from './src/components/SplashAnimation';
 import { FirstLaunchIntro, INTRO_STORAGE_KEY } from './src/components/FirstLaunchIntro';
 import { BackupRestoreModal } from './src/components/BackupRestoreModal';
+import { AppMenuModal } from './src/components/AppMenuModal';
+import { DataManagementModal } from './src/components/DataManagementModal';
 
 export default function App() {
   const [clients, setClients] = useState<ClientWithVideos[]>([]);
@@ -55,6 +57,8 @@ export default function App() {
   const [isGlobalExportVisible, setIsGlobalExportVisible] = useState(false);
   const [clientForExport, setClientForExport] = useState<ClientWithVideos | null>(null);
   const [isBackupRestoreVisible, setIsBackupRestoreVisible] = useState(false);
+  const [isAppMenuVisible, setIsAppMenuVisible] = useState(false);
+  const [isDataManagementVisible, setIsDataManagementVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastIsError, setToastIsError] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
@@ -125,38 +129,56 @@ export default function App() {
   // Hardware BackHandler: Prevents app exit and safely navigates back
   useEffect(() => {
     const onHardwareBackPress = () => {
-      // 1. Dismiss global export modal if open
+      // 1. Dismiss App Menu if open
+      if (isAppMenuVisible) {
+        setIsAppMenuVisible(false);
+        return true;
+      }
+
+      // 2. Dismiss Data Management modal if open
+      if (isDataManagementVisible) {
+        setIsDataManagementVisible(false);
+        return true;
+      }
+
+      // 3. Dismiss Backup & Restore modal if open
+      if (isBackupRestoreVisible) {
+        setIsBackupRestoreVisible(false);
+        return true;
+      }
+
+      // 4. Dismiss global export modal if open
       if (isGlobalExportVisible) {
         setIsGlobalExportVisible(false);
         setClientForExport(null);
         return true;
       }
 
-      // 2. Dismiss voice assistant modal if open
+      // 5. Dismiss voice assistant modal if open
       if (isVoiceAssistantVisible) {
         setIsVoiceAssistantVisible(false);
         return true;
       }
 
-      // 3. Dismiss add client modal if open
+      // 6. Dismiss add client modal if open
       if (isAddClientVisible) {
         setIsAddClientVisible(false);
         return true;
       }
 
-      // 4. Return from Client Details screen to previous screen
+      // 7. Return from Client Details screen to previous screen
       if (selectedClient) {
         setSelectedClient(null);
         return true;
       }
 
-      // 5. Return from Clients tab to Home tab
+      // 8. Return from Clients tab to Home tab
       if (activeTab !== 'home') {
         setActiveTab('home');
         return true;
       }
 
-      // 6. On Home screen, safe exit behavior (double tap within 2000ms)
+      // 9. On Home screen, safe exit behavior (double tap within 2000ms)
       const now = Date.now();
       if (now - lastBackPressTimeRef.current < 2000) {
         BackHandler.exitApp();
@@ -164,7 +186,7 @@ export default function App() {
       }
 
       lastBackPressTimeRef.current = now;
-      showNotification('Press back again to exit EditFlow');
+      showNotification('Press back again to exit A Note');
       return true;
     };
 
@@ -175,6 +197,9 @@ export default function App() {
 
     return () => backSubscription.remove();
   }, [
+    isAppMenuVisible,
+    isDataManagementVisible,
+    isBackupRestoreVisible,
     isGlobalExportVisible,
     isVoiceAssistantVisible,
     isAddClientVisible,
@@ -424,30 +449,7 @@ export default function App() {
           <View style={styles.mainContainer}>
             {/* Header matching Screen 1 */}
             <Header
-              onMenuPress={() => {
-                Alert.alert(
-                  'A Note Menu',
-                  'Client Video & Delivery Tracker\nClaymorphism Edition',
-                  [
-                    { text: 'Add Client', onPress: () => setIsAddClientVisible(true) },
-                    { text: 'Voice Assistant', onPress: () => setIsVoiceAssistantVisible(true) },
-                    {
-                      text: 'Export Reports (PDF / Excel)',
-                      onPress: () => {
-                        if (clients.length > 0) {
-                          setClientForExport(clients[0]);
-                          setIsGlobalExportVisible(true);
-                        } else {
-                          showNotification('Add a client first to export reports.', true);
-                        }
-                      },
-                    },
-                    { text: 'Backup & Restore', onPress: () => setIsBackupRestoreVisible(true) },
-                    { text: 'App Guide & Intro', onPress: () => setIsIntroVisible(true) },
-                    { text: 'Close', style: 'cancel' },
-                  ]
-                );
-              }}
+              onMenuPress={() => setIsAppMenuVisible(true)}
               onNotificationPress={() => {
                 showNotification(`You have ${dashboardSummary.remainingVideos} pending videos across all clients.`);
               }}
@@ -679,6 +681,22 @@ export default function App() {
                       </View>
                     </View>
 
+                    {/* Data Management & Settings Entry */}
+                    <TouchableOpacity
+                      style={[styles.moreBackupBtn, { marginBottom: 10 }]}
+                      onPress={() => setIsDataManagementVisible(true)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.moreBackupIconBox, { backgroundColor: '#EDE8FD' }]}>
+                        <Ionicons name="server" size={20} color={THEME.colors.purple} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.moreBackupTitle}>Data Management &amp; Settings</Text>
+                        <Text style={styles.moreBackupDesc}>Backup &bull; Restore &bull; Delete All App Data</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
+                    </TouchableOpacity>
+
                     {/* Local Backup & Restore Entry */}
                     <TouchableOpacity
                       style={styles.moreBackupBtn}
@@ -752,6 +770,37 @@ export default function App() {
             loadData();
             showNotification('Data restored successfully!');
           }}
+        />
+
+        {/* App Menu Modal */}
+        <AppMenuModal
+          visible={isAppMenuVisible}
+          onClose={() => setIsAppMenuVisible(false)}
+          onOpenAddClient={() => setIsAddClientVisible(true)}
+          onOpenVoice={() => setIsVoiceAssistantVisible(true)}
+          onOpenExportReports={() => {
+            if (clients.length > 0) {
+              setClientForExport(clients[0]);
+              setIsGlobalExportVisible(true);
+            } else {
+              showNotification('Add a client first to export reports.', true);
+            }
+          }}
+          onOpenDataManagement={() => setIsDataManagementVisible(true)}
+          onOpenIntro={() => setIsIntroVisible(true)}
+        />
+
+        {/* Data Management & Settings Modal */}
+        <DataManagementModal
+          visible={isDataManagementVisible}
+          onClose={() => setIsDataManagementVisible(false)}
+          onOpenBackupRestore={() => setIsBackupRestoreVisible(true)}
+          onDataCleared={async () => {
+            await loadData();
+            setSelectedClient(null);
+            setActiveTab('home');
+          }}
+          onNotify={showNotification}
         />
 
         {/* First-Launch Intro Modal */}

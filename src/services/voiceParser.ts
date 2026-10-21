@@ -10,6 +10,7 @@ export interface ParseResult {
   ambiguityPrompt?: string;
   matchedClient?: ClientWithVideos;
   matchedVideoNumber?: number;
+  alreadyCompleted?: boolean;
 }
 
 const NUMBER_WORDS: Record<string, number> = {
@@ -22,6 +23,7 @@ const NUMBER_WORDS: Record<string, number> = {
   third: 3,
   four: 4,
   fourth: 4,
+  for: 4, // speech-to-text homophone for "four"
   five: 5,
   fifth: 5,
   six: 6,
@@ -30,23 +32,37 @@ const NUMBER_WORDS: Record<string, number> = {
   seventh: 7,
   eight: 8,
   eighth: 8,
+  ate: 8, // speech-to-text homophone for "eight"
   nine: 9,
   ninth: 9,
   ten: 10,
   tenth: 10,
   eleven: 11,
+  eleventh: 11,
   twelve: 12,
+  twelfth: 12,
   thirteen: 13,
+  thirteenth: 13,
   fourteen: 14,
+  fourteenth: 14,
   fifteen: 15,
+  fifteenth: 15,
   sixteen: 16,
+  sixteenth: 16,
   seventeen: 17,
+  seventeenth: 17,
   eighteen: 18,
+  eighteenth: 18,
   nineteen: 19,
+  nineteenth: 19,
   twenty: 20,
+  twentieth: 20,
   thirty: 30,
+  thirtieth: 30,
   forty: 40,
+  fourtieth: 40,
   fifty: 50,
+  fiftieth: 50,
   sixty: 60,
   seventy: 70,
   eighty: 80,
@@ -58,14 +74,14 @@ const NUMBER_WORDS: Record<string, number> = {
 };
 
 /**
- * Converts English number phrases like "ten thousand", "eight hundred", "fifteen hundred",
- * or raw numbers ("10000", "₹800", "12k") into an integer.
+ * Converts English number phrases like "five", "video 5", "fifteen hundred",
+ * or raw numbers ("5", "10000", "₹800", "12k") into an integer.
  */
 export function wordsToNumber(text: string): number | null {
   if (!text) return null;
-  const clean = text.toLowerCase().replace(/[,₹$]/g, '').trim();
+  const clean = text.toLowerCase().replace(/[,₹$#]/g, '').trim();
 
-  // Try direct number parse (e.g. "10000", "12.5k")
+  // Direct numeric match (e.g. "5", "10000", "12k")
   if (/^\d+(\.\d+)?k?$/.test(clean)) {
     if (clean.endsWith('k')) {
       const val = parseFloat(clean.replace('k', ''));
@@ -114,6 +130,9 @@ export function findMatchingClient(
   }
 
   const cleanQuery = query.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+  if (!cleanQuery) {
+    return { client: null, isAmbiguous: false, candidates: [] };
+  }
 
   // Exact match first
   const exact = clients.filter(
@@ -141,23 +160,39 @@ export function findMatchingClient(
 }
 
 /**
+ * Normalizes speech recognition or typed command text.
+ */
+function normalizeCommandText(raw: string): string {
+  let text = raw.trim().toLowerCase();
+  // Strip trailing punctuation
+  text = text.replace(/^[.,!?;:\s]+|[.,!?;:\s]+$/g, '');
+
+  // Normalize "video number 5", "video no. 5", "video no 5", "video #5" -> "video 5"
+  text = text.replace(/\bvideo\s+(?:number|no\.?|#)\s*([a-z0-9]+)/gi, 'video $1');
+  text = text.replace(/\bvideo\s*#\s*([a-z0-9]+)/gi, 'video $1');
+
+  // Handle common speech recognition anomaly: "video for" when user said "video four"
+  text = text.replace(/\bvideo\s+for\s+(is\s+)?(done|completed|finished)/gi, 'video 4 $1$2');
+
+  return text;
+}
+
+/**
  * Parses user voice transcript against available clients and commands.
  */
 export function parseVoiceCommand(
   rawTranscript: string,
   clients: ClientWithVideos[]
 ): ParseResult {
-  const transcript = rawTranscript.trim();
-  if (!transcript) {
+  if (!rawTranscript || !rawTranscript.trim()) {
     return {
       success: false,
-      message: 'No speech recognized. Please try again.',
+      message: 'No speech recognized. Please speak or type your command.',
       actionType: 'UNKNOWN',
     };
   }
 
-  // Sanitize punctuation at the end for consistent matching
-  const lower = transcript.toLowerCase().replace(/[.,!?;:]+$/, '').trim();
+  const lower = normalizeCommandText(rawTranscript);
 
   // 1. Specific Client Navigation: "Show client Rahul", "Open client Rahul"
   const showClientMatch = lower.match(/(?:show|open|view|go\s+to)\s+client\s+([^,]+)/i);
@@ -192,7 +227,7 @@ export function parseVoiceCommand(
   ) {
     return {
       success: true,
-      message: 'Opening Add Client modal. You can also say: "Add client Rahul, rate 800, payment 10000".',
+      message: 'Opening Add Client modal.',
       actionType: 'NAVIGATE',
       targetScreen: 'new_client',
     };
@@ -209,7 +244,7 @@ export function parseVoiceCommand(
     );
     return {
       success: true,
-      message: `You have ${totalRemaining} remaining videos to deliver across all clients.`,
+      message: `You have ${totalRemaining} remaining videos across all clients.`,
       actionType: 'QUERY',
       targetScreen: 'dashboard',
     };
@@ -246,10 +281,8 @@ export function parseVoiceCommand(
     };
   }
 
-  // 2. Add client command:
+  // 3. Add Client Command
   // "Add client Rahul, rate 800, payment 10000"
-  // "Add client Rahul, payment 10000, rate 800"
-  // "Add client Rahul, budget 10000, rate 800"
   // "New client Amit budget 5000 rate 500"
   const addClientMatch = lower.match(/(?:add|new|create)\s+client\s+([^,]+)/i);
   if (addClientMatch) {
@@ -259,7 +292,7 @@ export function parseVoiceCommand(
       rawName = rawName.substring(0, firstKeywordIndex).trim();
     }
 
-    let clientName = rawName
+    const clientName = rawName
       .replace(/^(with|named|for)\s+/i, '')
       .replace(/[.,!?:;]/g, '')
       .split(' ')
@@ -267,14 +300,12 @@ export function parseVoiceCommand(
       .join(' ')
       .trim();
 
-    // Extract budget or payment from the rest of the text
     const budgetMatch = lower.match(/(?:budget|payment|advance|total)\s*(?:of|is|:)?\s*([a-zA-Z0-9,\s₹$]+?)(?:,|rate|per|\band\b|$)/i);
     let budget: number | null = null;
     if (budgetMatch) {
       budget = wordsToNumber(budgetMatch[1]);
     }
 
-    // Extract rate from the rest of the text
     const rateMatch = lower.match(/(?:rate|per\s*video)\s*(?:of|is|:)?\s*([a-zA-Z0-9,\s₹$]+?)(?:,|budget|payment|advance|\band\b|$)/i);
     let rate: number | null = null;
     if (rateMatch) {
@@ -292,7 +323,7 @@ export function parseVoiceCommand(
     if (!budget || budget <= 0) {
       return {
         success: false,
-        message: `Missing or invalid payment for ${clientName}. Please specify total payment or budget.`,
+        message: `Missing or invalid payment amount for ${clientName}.`,
         actionType: 'ADD_CLIENT',
       };
     }
@@ -300,7 +331,7 @@ export function parseVoiceCommand(
     if (!rate || rate <= 0) {
       return {
         success: false,
-        message: `Missing or invalid rate for ${clientName}. Please specify per-video rate.`,
+        message: `Missing or invalid per-video rate for ${clientName}.`,
         actionType: 'ADD_CLIENT',
       };
     }
@@ -310,11 +341,11 @@ export function parseVoiceCommand(
 
     return {
       success: true,
-      message: `Ready to add client ${clientName}: ₹${budget.toLocaleString('en-IN')} payment, ₹${rate}/video (${calculatedVideos} videos, ₹${unused} unused balance).`,
+      message: `Adding client ${clientName}: ₹${budget.toLocaleString('en-IN')} payment, ₹${rate}/video (${calculatedVideos} videos, ₹${unused} balance).`,
       actionType: 'ADD_CLIENT',
       pendingAction: {
         type: 'ADD_CLIENT',
-        description: `Add client ${clientName} with payment ₹${budget.toLocaleString('en-IN')} at ₹${rate}/video (${calculatedVideos} videos, ₹${unused} balance)`,
+        description: `Add client ${clientName} with payment ₹${budget.toLocaleString('en-IN')} at ₹${rate}/video (${calculatedVideos} videos)`,
         clientName,
         totalBudget: budget,
         ratePerVideo: rate,
@@ -322,13 +353,13 @@ export function parseVoiceCommand(
     };
   }
 
-  // 3. Complete video command:
-  // "Video five is done"
-  // "Video 5 is done"
-  // "Rahul, video five is done"
-  // "Rahul, video 1 done"
-  // "Rahul, video two completed"
-  // "Video 4 done for Rahul"
+  // 4. Complete Video Command:
+  // "Rahul, video five is done."
+  // "Rahul, video 5 is done."
+  // "Video five is done."
+  // "Video 5 is done."
+  // "Video 5 done for Rahul"
+  // "Rahul video 5 completed"
   const doneKeywords = ['done', 'completed', 'finished', 'complete', 'finish', 'check', 'checked'];
   const hasDoneKeyword = doneKeywords.some((k) => lower.includes(k));
 
@@ -336,25 +367,42 @@ export function parseVoiceCommand(
     let potentialClientName = '';
     let potentialVideoStr = '';
 
-    // Check Format A: "Video [number] (is) (done|completed) for [Client]"
-    const videoFirstMatch = lower.match(/video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete)\s+(?:for\s+)?([a-zA-Z0-9\s]+)/i);
+    // Pattern 1: "[Client][,: ] (mark)? video [number] (is)? (done|completed)"
+    // Example: "Rahul, video five is done", "Rahul video 5 completed"
+    const clientFirstMatch = lower.match(
+      /^([a-zA-Z0-9\s]+?)[,:]?\s+(?:mark\s+)?video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete|checked)/i
+    );
 
-    // Check Format B: "[Client][,] video [number] (is) (done|completed)"
-    const clientFirstMatch = lower.match(/([a-zA-Z0-9\s]+?)[,\s]+video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete)/i);
+    // Pattern 2: "(mark)? video [number] (is)? (done|completed) for/of [Client]"
+    // Example: "Video 5 is done for Rahul", "Video five done for Rahul"
+    const videoFirstMatch = lower.match(
+      /^(?:mark\s+)?video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete|checked)\s+(?:for|of)\s+([a-zA-Z0-9\s]+)/i
+    );
 
-    // Check Format C: "Video [number] (is) (done|completed)" (no client specified)
-    const videoOnlyMatch = lower.match(/^video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete)/i);
+    // Pattern 3: "(mark)? video [number] for/of [Client] (is)? (done|completed)"
+    // Example: "Video 5 for Rahul is done"
+    const videoForClientMatch = lower.match(
+      /^(?:mark\s+)?video\s+([a-zA-Z0-9]+)\s+(?:for|of)\s+([a-zA-Z0-9\s]+?)\s+(?:is\s+)?(?:done|completed|finished|complete|checked)/i
+    );
+
+    // Pattern 4: "(mark)? video [number] (is)? (done|completed)" (no client specified)
+    // Example: "Video five is done", "Video 5 is done", "Mark video 5 done"
+    const videoOnlyMatch = lower.match(
+      /^(?:mark\s+)?video\s+([a-zA-Z0-9]+)\s*(?:is\s+)?(?:done|completed|finished|complete|checked)?$/i
+    );
 
     if (videoFirstMatch) {
       potentialVideoStr = videoFirstMatch[1];
       potentialClientName = videoFirstMatch[2].trim();
+    } else if (videoForClientMatch) {
+      potentialVideoStr = videoForClientMatch[1];
+      potentialClientName = videoForClientMatch[2].trim();
     } else if (clientFirstMatch) {
       potentialClientName = clientFirstMatch[1].trim();
       potentialVideoStr = clientFirstMatch[2].trim();
     } else if (videoOnlyMatch) {
       potentialVideoStr = videoOnlyMatch[1];
       if (clients.length === 1) {
-        // Automatically resolve to the single active client
         potentialClientName = clients[0].name;
       } else if (clients.length > 1) {
         const vNum = wordsToNumber(potentialVideoStr);
@@ -362,7 +410,7 @@ export function parseVoiceCommand(
           success: false,
           isAmbiguous: true,
           ambiguityPrompt: `Which client is Video ${vNum || potentialVideoStr} for? Available clients: ${clients.map((c) => c.name).join(', ')}`,
-          message: `Please specify the client name for Video ${vNum || potentialVideoStr}.`,
+          message: `Multiple clients found. Please specify client name (e.g., "${clients[0].name}, video ${vNum || potentialVideoStr} is done").`,
           actionType: 'COMPLETE_VIDEO',
         };
       } else {
@@ -374,26 +422,46 @@ export function parseVoiceCommand(
       }
     }
 
-    if (potentialClientName && potentialVideoStr) {
+    if (potentialVideoStr) {
       const videoNum = wordsToNumber(potentialVideoStr);
 
       if (!videoNum || videoNum <= 0) {
         return {
           success: false,
-          message: `Could not identify video number in "${potentialVideoStr}". Example: "Rahul, video 1 done"`,
+          message: `Could not identify video number in "${potentialVideoStr}". Example: "Rahul, video 5 is done"`,
           actionType: 'COMPLETE_VIDEO',
         };
       }
 
-      // Match client
+      // If client name is present, match it
+      if (!potentialClientName) {
+        if (clients.length === 1) {
+          potentialClientName = clients[0].name;
+        } else if (clients.length > 1) {
+          return {
+            success: false,
+            isAmbiguous: true,
+            ambiguityPrompt: `Which client is Video ${videoNum} for? Available clients: ${clients.map((c) => c.name).join(', ')}`,
+            message: `Please specify the client name for Video ${videoNum}.`,
+            actionType: 'COMPLETE_VIDEO',
+          };
+        } else {
+          return {
+            success: false,
+            message: 'No clients found. Please add a client first.',
+            actionType: 'COMPLETE_VIDEO',
+          };
+        }
+      }
+
       const match = findMatchingClient(potentialClientName, clients);
 
       if (match.isAmbiguous) {
         return {
           success: false,
           isAmbiguous: true,
-          ambiguityPrompt: `Multiple clients matched "${potentialClientName}". Please specify the full name. Candidates: ${match.candidates.map((c) => c.name).join(', ')}`,
-          message: `Ambiguous client name. Matches: ${match.candidates.map((c) => c.name).join(', ')}`,
+          ambiguityPrompt: `Multiple clients matched "${potentialClientName}". Candidates: ${match.candidates.map((c) => c.name).join(', ')}`,
+          message: `Ambiguous client name "${potentialClientName}". Candidates: ${match.candidates.map((c) => c.name).join(', ')}`,
           actionType: 'COMPLETE_VIDEO',
         };
       }
@@ -407,31 +475,35 @@ export function parseVoiceCommand(
       }
 
       const client = match.client;
+      // Match strictly by displayed videoNumber
       const targetVideo = client.videos.find((v) => v.videoNumber === videoNum);
 
       if (!targetVideo) {
         return {
           success: false,
-          message: `${client.name} only has ${client.calculations.totalVideos} videos configured. Video ${videoNum} does not exist.`,
+          message: `${client.name} has ${client.calculations.totalVideos} videos configured. Video ${videoNum} does not exist.`,
           actionType: 'COMPLETE_VIDEO',
           matchedClient: client,
         };
       }
 
-      // Check duplicate completion
+      // Check if already completed: friendly message, no alarming error popup, no duplicate history
       if (targetVideo.isCompleted) {
         return {
-          success: false,
-          message: `Video ${videoNum} for ${client.name} is ALREADY marked as completed!`,
+          success: true,
+          alreadyCompleted: true,
+          message: `Video ${videoNum} is already completed.`,
           actionType: 'COMPLETE_VIDEO',
           matchedClient: client,
           matchedVideoNumber: videoNum,
         };
       }
 
+      // Unambiguous, pending video: executes directly without unnecessary confirmation
       return {
         success: true,
-        message: `Marking Video ${videoNum} completed for ${client.name}.`,
+        alreadyCompleted: false,
+        message: `Video ${videoNum} for ${client.name} completed!`,
         actionType: 'COMPLETE_VIDEO',
         matchedClient: client,
         matchedVideoNumber: videoNum,
@@ -450,7 +522,7 @@ export function parseVoiceCommand(
   // Fallback / Unrecognized command
   return {
     success: false,
-    message: `Command not recognized: "${rawTranscript}". Try saying "Rahul, video 1 done" or "Add client Rahul, budget 10000, rate 800".`,
+    message: `Command not recognized: "${rawTranscript}". Try: "Rahul, video 5 is done" or "Video 5 is done".`,
     actionType: 'UNKNOWN',
   };
 }

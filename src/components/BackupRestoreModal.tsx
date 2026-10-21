@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -31,6 +32,7 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
   onClose,
   onRestoreSuccess,
 }) => {
+  const insets = useSafeAreaInsets();
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [pendingRestorePayload, setPendingRestorePayload] = useState<BackupPayload | null>(null);
@@ -145,7 +147,15 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.container}>
+        <View
+          style={[
+            styles.container,
+            {
+              paddingBottom: Math.max(insets.bottom, 16) + 12,
+              paddingTop: insets.top > 0 ? insets.top : 16,
+            },
+          ]}
+        >
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerTitleGroup}>

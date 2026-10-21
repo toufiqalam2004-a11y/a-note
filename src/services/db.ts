@@ -101,25 +101,29 @@ export async function initDatabase(): Promise<void> {
       // Run non-destructive schema migrations
       await runDatabaseMigrations(db);
 
-      // Check if table is empty, seed initial sample client
+      // Check if table has ever been seeded or initialized
+      const hasSeeded = await AsyncStorage.getItem('@anote_has_seeded_v1');
       const countResult = await db.getFirstAsync<{ count: number }>(
         'SELECT COUNT(*) as count FROM clients;'
       );
 
-      if (!countResult || countResult.count === 0) {
+      if (!hasSeeded && (!countResult || countResult.count === 0)) {
         await seedInitialData();
+        await AsyncStorage.setItem('@anote_has_seeded_v1', 'true');
       }
       return;
     } catch (e) {
-      console.warn('[EditFlow DB] Error creating SQLite tables, using fallback storage:', e);
+      console.warn('[A Note DB] Error creating SQLite tables, using fallback storage:', e);
       isSQLiteAvailable = false;
     }
   }
 
   // Fallback to AsyncStorage for offline web/test
+  const hasSeededFallback = await AsyncStorage.getItem('@anote_has_seeded_v1');
   const stored = await AsyncStorage.getItem(ASYNC_STORAGE_KEY);
-  if (!stored) {
+  if (!hasSeededFallback && !stored) {
     await seedInitialDataFallback();
+    await AsyncStorage.setItem('@anote_has_seeded_v1', 'true');
   }
 }
 
@@ -693,4 +697,46 @@ export async function getClientCompletionHistory(
 export async function getClientById(clientId: string): Promise<ClientWithVideos | null> {
   const all = await getClientsWithVideos();
   return all.find((c) => c.id === clientId) || null;
+}
+
+/**
+ * Permanently deletes all user client records, video items, and completion history
+ * inside a secure SQLite transaction. Preserves database schema and backup files.
+ */
+export async function deleteAllAppData(): Promise<{ success: boolean; message: string }> {
+  const db = await getDbInstance();
+
+  if (db && isSQLiteAvailable) {
+    try {
+      await db.withTransactionAsync(async () => {
+        // Delete records in dependency order
+        await db.execAsync(`
+          DELETE FROM completion_history;
+          DELETE FROM videos;
+          DELETE FROM clients;
+        `);
+      });
+
+      // Clear local storage cache
+      await AsyncStorage.removeItem(ASYNC_STORAGE_KEY);
+      // Ensure seed flag is set so empty state persists as a clean slate
+      await AsyncStorage.setItem('@anote_has_seeded_v1', 'true');
+
+      return {
+        success: true,
+        message: 'All client, video, and delivery records have been permanently cleared.',
+      };
+    } catch (err: any) {
+      console.error('[A Note DB] Failed to delete all app data:', err);
+      throw new Error(`Database transaction failed: ${err.message || 'Could not clear data'}`);
+    }
+  }
+
+  // Fallback storage
+  await AsyncStorage.removeItem(ASYNC_STORAGE_KEY);
+  await AsyncStorage.setItem('@anote_has_seeded_v1', 'true');
+  return {
+    success: true,
+    message: 'All client and video data cleared from local storage.',
+  };
 }

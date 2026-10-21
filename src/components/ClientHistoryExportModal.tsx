@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   ClientWithVideos,
@@ -40,6 +41,7 @@ export const ClientHistoryExportModal: React.FC<ClientHistoryExportModalProps> =
   onClose,
   onToggleVideo,
 }) => {
+  const insets = useSafeAreaInsets();
   const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('all');
   const [statusFilter, setStatusFilter] = useState<HistoryStatusFilter>('all');
   const [isExporting, setIsExporting] = useState(false);
@@ -123,7 +125,15 @@ export const ClientHistoryExportModal: React.FC<ClientHistoryExportModalProps> =
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.container}>
+        <View
+          style={[
+            styles.container,
+            {
+              paddingBottom: Math.max(insets.bottom, 16) + 10,
+              paddingTop: insets.top > 0 ? insets.top : 16,
+            },
+          ]}
+        >
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerTitleGroup}>

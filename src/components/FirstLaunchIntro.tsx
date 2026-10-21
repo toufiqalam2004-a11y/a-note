@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,10 @@ import {
   Modal,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
-  Dimensions,
+  Animated,
+  AccessibilityInfo,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { THEME } from '../constants/theme';
@@ -20,12 +21,52 @@ interface FirstLaunchIntroProps {
   onGetStarted: () => void;
 }
 
-const { width } = Dimensions.get('window');
-
 export const FirstLaunchIntro: React.FC<FirstLaunchIntroProps> = ({
   visible,
   onGetStarted,
 }) => {
+  const insets = useSafeAreaInsets();
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  // Entrance animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+  const logoScale = useRef(new Animated.Value(0.9)).current;
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => setReduceMotion(enabled))
+      .catch(() => {});
+
+    if (visible) {
+      if (reduceMotion) {
+        fadeAnim.setValue(1);
+        slideAnim.setValue(0);
+        logoScale.setValue(1);
+      } else {
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.spring(slideAnim, {
+            toValue: 0,
+            friction: 7,
+            tension: 40,
+            useNativeDriver: true,
+          }),
+          Animated.spring(logoScale, {
+            toValue: 1,
+            friction: 6,
+            tension: 45,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      }
+    }
+  }, [visible, reduceMotion, fadeAnim, slideAnim, logoScale]);
+
   const handlePressGetStarted = async () => {
     try {
       await AsyncStorage.setItem(INTRO_STORAGE_KEY, 'true');
@@ -42,21 +83,34 @@ export const FirstLaunchIntro: React.FC<FirstLaunchIntroProps> = ({
       transparent={false}
       onRequestClose={handlePressGetStarted}
     >
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
+      <View style={[styles.rootContainer, { paddingTop: insets.top }]}>
+        <Animated.View
+          style={[
+            styles.container,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
           {/* Top Brand Header */}
           <View style={styles.topHeader}>
-            <View style={styles.badgePill}>
-              <Ionicons name="sparkles" size={14} color="#00D287" />
+            <Animated.View
+              style={[
+                styles.badgePill,
+                { transform: [{ scale: logoScale }] },
+              ]}
+            >
+              <Ionicons name="sparkles" size={13} color="#00D287" />
               <Text style={styles.badgeText}>WELCOME TO A NOTE</Text>
-            </View>
+            </Animated.View>
 
             <View style={styles.brandTitleRow}>
               <Text style={styles.brandA}>A </Text>
               <Text style={styles.brandNote}>Note</Text>
             </View>
             <Text style={styles.tagline}>
-              Client Video Quotas &bull; Revenue Reconciliation &bull; Offline
+              Client Video Quotas &bull; Revenue Tracking &bull; Offline
             </Text>
           </View>
 
@@ -74,7 +128,7 @@ export const FirstLaunchIntro: React.FC<FirstLaunchIntroProps> = ({
               <View style={styles.featureContent}>
                 <Text style={styles.featureTitle}>Auto Video Quotas</Text>
                 <Text style={styles.featureDesc}>
-                  Set client payment advances and per-video rates. A Note automatically calculates video capacity and tracks completed vs. remaining workload.
+                  Set client payment advances and per-video rates. A Note automatically calculates video capacity and tracks remaining workload.
                 </Text>
               </View>
             </View>
@@ -87,7 +141,7 @@ export const FirstLaunchIntro: React.FC<FirstLaunchIntroProps> = ({
               <View style={styles.featureContent}>
                 <Text style={styles.featureTitle}>Advance Reconciliation</Text>
                 <Text style={styles.featureDesc}>
-                  Payments received are treated as advances. Track real earned revenue as videos are delivered, and monitor unused advance balances with zero guesswork.
+                  Payments received are tracked as advances. Money is officially earned as videos are delivered, with zero revenue guesswork.
                 </Text>
               </View>
             </View>
@@ -100,7 +154,7 @@ export const FirstLaunchIntro: React.FC<FirstLaunchIntroProps> = ({
               <View style={styles.featureContent}>
                 <Text style={styles.featureTitle}>Real PDF &amp; Excel Reports</Text>
                 <Text style={styles.featureDesc}>
-                  Generate clean vector PDF statements and genuine multi-sheet Excel (.xlsx) workbooks. Share instantly via WhatsApp, email, or Google Drive.
+                  Export genuine vector PDF statements and multi-sheet Excel (.xlsx) workbooks directly to WhatsApp, Drive, or email.
                 </Text>
               </View>
             </View>
@@ -113,18 +167,20 @@ export const FirstLaunchIntro: React.FC<FirstLaunchIntroProps> = ({
               <View style={styles.featureContent}>
                 <Text style={styles.featureTitle}>Offline &amp; Voice Commands</Text>
                 <Text style={styles.featureDesc}>
-                  Fast local SQLite storage keeps all your data strictly on your device. Complete videos hands-free using natural voice recognition.
+                  Say “Rahul, video 5 is done” or type commands to mark deliveries without touching checkboxes.
                 </Text>
               </View>
             </View>
           </ScrollView>
 
           {/* Bottom Action Footer */}
-          <View style={styles.footerContainer}>
+          <View style={[styles.footerContainer, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
             <TouchableOpacity
               style={styles.getStartedButton}
               onPress={handlePressGetStarted}
               activeOpacity={0.88}
+              accessibilityRole="button"
+              accessibilityLabel="Get Started with A Note"
             >
               <Text style={styles.getStartedText}>Get Started</Text>
               <View style={styles.arrowCircle}>
@@ -132,32 +188,30 @@ export const FirstLaunchIntro: React.FC<FirstLaunchIntroProps> = ({
               </View>
             </TouchableOpacity>
             <Text style={styles.footerSubtext}>
-              All client records are saved locally &amp; private on your phone.
+              All data is saved locally on your phone &bull; 100% private
             </Text>
           </View>
-        </View>
-      </SafeAreaView>
+        </Animated.View>
+      </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
+  rootContainer: {
     flex: 1,
     backgroundColor: '#F0EBF8',
   },
   container: {
     flex: 1,
-    backgroundColor: '#F0EBF8',
     justifyContent: 'space-between',
-    paddingHorizontal: 22,
-    paddingTop: 16,
-    paddingBottom: 20,
+    paddingHorizontal: 20,
+    paddingTop: 8,
   },
   topHeader: {
     alignItems: 'center',
-    paddingTop: 10,
-    paddingBottom: 16,
+    paddingTop: 6,
+    paddingBottom: 12,
   },
   badgePill: {
     flexDirection: 'row',
@@ -174,7 +228,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 2,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   badgeText: {
     fontSize: 10,
@@ -187,51 +241,51 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   brandA: {
-    fontSize: 36,
+    fontSize: 34,
     fontWeight: '900',
     color: '#1E1B38',
     letterSpacing: -0.5,
   },
   brandNote: {
-    fontSize: 36,
+    fontSize: 34,
     fontWeight: '900',
     color: '#00D287',
     letterSpacing: -0.5,
   },
   tagline: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
     color: '#8E8AAB',
-    marginTop: 6,
+    fontWeight: '600',
+    marginTop: 4,
     textAlign: 'center',
   },
   featuresScroll: {
     flex: 1,
-    marginVertical: 8,
+    marginVertical: 4,
   },
   scrollContent: {
-    gap: 12,
-    paddingBottom: 12,
+    gap: 10,
+    paddingVertical: 4,
   },
   featureCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 16,
+    padding: 14,
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.95)',
     shadowColor: THEME.colors.shadowColor,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 3,
-    gap: 14,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 2,
+    gap: 12,
   },
   iconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -240,60 +294,53 @@ const styles = StyleSheet.create({
   },
   featureTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#1E1B38',
-    marginBottom: 3,
+    marginBottom: 2,
   },
   featureDesc: {
-    fontSize: 12,
-    fontWeight: '400',
-    color: '#6B6684',
-    lineHeight: 17,
+    fontSize: 11,
+    color: '#6E6A8A',
+    lineHeight: 16,
   },
   footerContainer: {
-    paddingTop: 12,
     alignItems: 'center',
+    paddingTop: 8,
   },
   getStartedButton: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#00D287',
-    width: '100%',
+    justifyContent: 'center',
+    backgroundColor: '#1E1B38',
     paddingVertical: 14,
-    paddingHorizontal: 22,
-    borderRadius: 28,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
-    shadowColor: '#00D287',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 6,
+    borderRadius: 20,
+    gap: 12,
+    shadowColor: '#1E1B38',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
   },
   getStartedText: {
     fontSize: 16,
     fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 0.3,
+    letterSpacing: -0.2,
   },
   arrowCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 2,
   },
   footerSubtext: {
     fontSize: 11,
-    color: '#A09CB8',
-    marginTop: 10,
+    color: '#8E8AAB',
     fontWeight: '500',
+    marginTop: 8,
+    textAlign: 'center',
   },
 });

@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   Alert,
   BackHandler,
+  Modal,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClientWithVideos, VideoItem } from '../types';
 import { THEME } from '../constants/theme';
-import { formatCurrency, formatDate } from '../utils/calculations';
+import { formatCurrency, formatDate, formatTime } from '../utils/calculations';
 import { ClientHistoryExportModal } from './ClientHistoryExportModal';
 
 interface ClientDetailsScreenProps {
@@ -46,13 +48,19 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
   onDeleteClient,
   onEditClient,
 }) => {
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'videos' | 'history' | 'reports'>('videos');
   const [isExportModalVisible, setIsExportModalVisible] = useState(false);
+  const [selectedVideoForDetails, setSelectedVideoForDetails] = useState<VideoItem | null>(null);
   const { calculations, videos } = client;
 
   // Hardware Back Button handler for Client Details Screen
   useEffect(() => {
     const handleHardwareBack = () => {
+      if (selectedVideoForDetails) {
+        setSelectedVideoForDetails(null);
+        return true;
+      }
       if (isExportModalVisible) {
         setIsExportModalVisible(false);
         return true;
@@ -65,7 +73,7 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
       handleHardwareBack
     );
     return () => subscription.remove();
-  }, [isExportModalVisible, onBack]);
+  }, [selectedVideoForDetails, isExportModalVisible, onBack]);
 
   const handleManualComplete = (vid: VideoItem) => {
     if (vid.isCompleted) return;
@@ -97,33 +105,8 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
     );
   };
 
-  const handleVideoOptions = (vid: VideoItem, dateDisplay: string) => {
-    if (vid.isCompleted) {
-      Alert.alert(
-        `Video ${vid.videoNumber}`,
-        `Status: Completed on ${dateDisplay}\nRate: ${formatCurrency(client.ratePerVideo)}`,
-        [
-          {
-            text: 'Reopen / Mark as Pending',
-            style: 'destructive',
-            onPress: () => handleManualReopen(vid),
-          },
-          { text: 'Close', style: 'cancel' },
-        ]
-      );
-    } else {
-      Alert.alert(
-        `Video ${vid.videoNumber}`,
-        `Status: Pending Delivery\nRate: ${formatCurrency(client.ratePerVideo)}`,
-        [
-          {
-            text: 'Mark Video as Completed',
-            onPress: () => handleManualComplete(vid),
-          },
-          { text: 'Close', style: 'cancel' },
-        ]
-      );
-    }
+  const handleVideoOptions = (vid: VideoItem) => {
+    setSelectedVideoForDetails(vid);
   };
 
   const progressPercent =
@@ -364,21 +347,18 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
                   style={[styles.videoCard, isCompleted && styles.videoCardCompleted]}
                 >
                   {/* Left: Number circle (Green check for completed, Purple for pending) */}
+                  {/* Left: Number circle - opens details, NEVER toggles completion */}
                   <TouchableOpacity
                     style={[
                       styles.numberCircle,
                       isCompleted ? styles.numberCircleDone : styles.numberCirclePending,
                     ]}
-                    onPress={() =>
-                      isCompleted
-                        ? handleVideoOptions(vid, dateDisplay)
-                        : handleManualComplete(vid)
-                    }
-                    activeOpacity={isCompleted ? 0.9 : 0.7}
+                    onPress={() => handleVideoOptions(vid)}
+                    activeOpacity={0.8}
                     accessibilityRole="button"
                     accessibilityLabel={`Video ${vid.videoNumber} ${
                       isCompleted ? 'Completed' : 'Pending'
-                    }`}
+                    } details`}
                   >
                     {isCompleted ? (
                       <Ionicons name="checkmark" size={17} color="#FFFFFF" />
@@ -387,14 +367,10 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
                     )}
                   </TouchableOpacity>
 
-                  {/* Middle: Video title & sub-title */}
+                  {/* Middle: Video title & sub-title - opens details, NEVER toggles completion */}
                   <TouchableOpacity
                     style={styles.videoInfoCol}
-                    onPress={() =>
-                      isCompleted
-                        ? handleVideoOptions(vid, dateDisplay)
-                        : handleManualComplete(vid)
-                    }
+                    onPress={() => handleVideoOptions(vid)}
                     activeOpacity={0.8}
                   >
                     <Text
@@ -408,7 +384,7 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
                     <Text style={styles.videoSubtitle}>{sampleTitle}</Text>
                   </TouchableOpacity>
 
-                  {/* Right: Status badge / checkmark + Date / Dedicated Pending button + dots */}
+                  {/* Right: Dedicated status button and isolated dots */}
                   <View style={styles.videoActionCol}>
                     {isCompleted ? (
                       <View style={styles.doneStatusGroup}>
@@ -432,10 +408,10 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
                       </TouchableOpacity>
                     )}
 
-                    {/* Isolated overflow menu (separate from completion control) */}
+                    {/* Isolated overflow menu for video options */}
                     <TouchableOpacity
                       style={styles.moreDotsBtn}
-                      onPress={() => handleVideoOptions(vid, dateDisplay)}
+                      onPress={() => handleVideoOptions(vid)}
                       hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
                       accessibilityRole="button"
                       accessibilityLabel={`Options for Video ${vid.videoNumber}`}
@@ -453,24 +429,22 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
           )}
         </View>
 
-        <View style={{ height: 100 }} />
+        <View style={{ height: Math.max(insets.bottom, 16) + 72 }} />
       </ScrollView>
 
-      {/* Floating Bottom Purple 3D Button: "Mark Video with Voice" matching Screen 2 */}
-      <View style={styles.bottomBarContainer}>
+      {/* Floating Bottom Button: "Mark Video with Voice" */}
+      <View style={[styles.bottomBarContainer, { bottom: Math.max(insets.bottom, 16) + 8 }]}>
         <TouchableOpacity
           style={styles.voiceFloatingBtn}
           onPress={onOpenVoice}
           activeOpacity={0.85}
         >
-          {/* Left white circular icon */}
           <View style={styles.voiceBtnCircleIcon}>
             <Ionicons name="mic" size={18} color={THEME.colors.purple} />
           </View>
 
           <Text style={styles.voiceBtnText}>Mark Video with Voice</Text>
 
-          {/* Right white circular arrow */}
           <View style={styles.voiceBtnCircleIcon}>
             <Ionicons name="arrow-forward" size={16} color={THEME.colors.purple} />
           </View>
@@ -484,6 +458,109 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
         onClose={() => setIsExportModalVisible(false)}
         onToggleVideo={onToggleVideo}
       />
+
+      {/* Video Details & Interaction Modal */}
+      {selectedVideoForDetails && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setSelectedVideoForDetails(null)}
+        >
+          <View style={styles.videoDetailsOverlay}>
+            <View style={styles.videoDetailsCard}>
+              <View style={styles.videoDetailsHeader}>
+                <View>
+                  <Text style={styles.videoDetailsTitle}>
+                    Video #{selectedVideoForDetails.videoNumber}
+                  </Text>
+                  <Text style={styles.videoDetailsSub}>{client.name}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.videoDetailsCloseBtn}
+                  onPress={() => setSelectedVideoForDetails(null)}
+                >
+                  <Ionicons name="close" size={20} color={THEME.colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.videoDetailsMetaGrid}>
+                <View style={styles.videoMetaItem}>
+                  <Text style={styles.videoMetaLabel}>Status</Text>
+                  <View
+                    style={[
+                      styles.videoStatusPill,
+                      selectedVideoForDetails.isCompleted
+                        ? styles.videoStatusPillDone
+                        : styles.videoStatusPillPending,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.videoStatusPillText,
+                        selectedVideoForDetails.isCompleted
+                          ? { color: THEME.colors.mint }
+                          : { color: THEME.colors.purple },
+                      ]}
+                    >
+                      {selectedVideoForDetails.isCompleted ? 'COMPLETED' : 'PENDING'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.videoMetaItem}>
+                  <Text style={styles.videoMetaLabel}>Agreed Rate</Text>
+                  <Text style={styles.videoMetaVal}>
+                    {formatCurrency(client.ratePerVideo)}
+                  </Text>
+                </View>
+              </View>
+
+              {selectedVideoForDetails.completedAt && (
+                <View style={styles.videoCompletedDateBox}>
+                  <Ionicons name="time-outline" size={14} color={THEME.colors.mint} />
+                  <Text style={styles.videoCompletedDateText}>
+                    Completed: {formatDate(selectedVideoForDetails.completedAt)} at{' '}
+                    {formatTime(selectedVideoForDetails.completedAt)}
+                  </Text>
+                </View>
+              )}
+
+              {/* Action Buttons */}
+              <View style={styles.videoDetailsActions}>
+                {selectedVideoForDetails.isCompleted ? (
+                  <TouchableOpacity
+                    style={styles.reopenActionBtn}
+                    onPress={() => {
+                      const vidToReopen = selectedVideoForDetails;
+                      setSelectedVideoForDetails(null);
+                      handleManualReopen(vidToReopen);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="refresh-outline" size={16} color="#FF5E7E" />
+                    <Text style={styles.reopenActionText}>Mark as Pending</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.completeActionMainBtn}
+                    onPress={() => {
+                      const vidToComplete = selectedVideoForDetails;
+                      setSelectedVideoForDetails(null);
+                      handleManualComplete(vidToComplete);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                    <Text style={styles.completeActionMainText}>Mark as Completed</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
     </View>
   );
 };
@@ -921,5 +998,148 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.2,
+  },
+  videoDetailsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(20, 16, 40, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  videoDetailsCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: THEME.colors.shadowColor,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  videoDetailsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0EBF8',
+    paddingBottom: 12,
+  },
+  videoDetailsTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: THEME.colors.textNavy,
+  },
+  videoDetailsSub: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: THEME.colors.textMuted,
+    marginTop: 2,
+  },
+  videoDetailsCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F7F3FC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoDetailsMetaGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 14,
+  },
+  videoMetaItem: {
+    flex: 1,
+    backgroundColor: '#F9F7FD',
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#ECE5F7',
+  },
+  videoMetaLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: THEME.colors.textMuted,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  videoMetaVal: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: THEME.colors.textNavy,
+  },
+  videoStatusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  videoStatusPillDone: {
+    backgroundColor: 'rgba(0, 210, 135, 0.15)',
+  },
+  videoStatusPillPending: {
+    backgroundColor: 'rgba(124, 92, 252, 0.15)',
+  },
+  videoStatusPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  videoCompletedDateBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#EBFBF5',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  videoCompletedDateText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: THEME.colors.mint,
+  },
+  videoDetailsActions: {
+    marginTop: 4,
+  },
+  completeActionMainBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: THEME.colors.mint,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: THEME.colors.mint,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  completeActionMainText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  reopenActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FFF0F3',
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FFD6DF',
+  },
+  reopenActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FF5E7E',
   },
 });
