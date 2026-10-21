@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   Animated,
   Dimensions,
@@ -131,20 +132,18 @@ export const SplashAnimation: React.FC<SplashAnimationProps> = ({ onFinish }) =>
 
           <Animated.View
             style={[
-              styles.clayTile,
+              styles.logoWrapper,
               {
                 opacity: fadeAnim,
                 transform: [{ scale: scaleAnim }],
               },
             ]}
           >
-            {/* Monogram / Brand Icon */}
-            <View style={styles.monogramRow}>
-              <Text style={styles.monogramA}>A</Text>
-              <View style={styles.noteIndicator}>
-                <Ionicons name="videocam" size={16} color="#FFFFFF" />
-              </View>
-            </View>
+            <Image
+              source={require('../../assets/images/anote-logo.png')}
+              style={styles.officialLogo}
+              resizeMode="contain"
+            />
           </Animated.View>
         </View>
 
@@ -200,56 +199,26 @@ const styles = StyleSheet.create({
   },
   pulseRing: {
     position: 'absolute',
-    width: 110,
-    height: 110,
-    borderRadius: 36,
+    width: 124,
+    height: 124,
+    borderRadius: 40,
     borderWidth: 2,
     borderColor: 'rgba(0, 210, 135, 0.45)',
   },
-  clayTile: {
-    width: 88,
-    height: 88,
-    borderRadius: 28,
-    backgroundColor: '#FFFFFF',
+  logoWrapper: {
+    width: 96,
+    height: 96,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.95)',
     shadowColor: THEME.colors.shadowColor,
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
     elevation: 8,
   },
-  monogramRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  monogramA: {
-    fontSize: 42,
-    fontWeight: '900',
-    color: '#1E1B38',
-    letterSpacing: -1,
-  },
-  noteIndicator: {
-    position: 'absolute',
-    bottom: -4,
-    right: -12,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#00D287',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#00D287',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 5,
-    elevation: 3,
+  officialLogo: {
+    width: 96,
+    height: 96,
   },
   textContainer: {
     alignItems: 'center',

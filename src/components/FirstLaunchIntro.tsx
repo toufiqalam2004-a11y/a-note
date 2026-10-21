@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   Modal,
   TouchableOpacity,
@@ -95,6 +96,19 @@ export const FirstLaunchIntro: React.FC<FirstLaunchIntroProps> = ({
         >
           {/* Top Brand Header */}
           <View style={styles.topHeader}>
+            <Animated.View
+              style={[
+                styles.logoWrapper,
+                { transform: [{ scale: logoScale }] },
+              ]}
+            >
+              <Image
+                source={require('../../assets/images/anote-logo.png')}
+                style={styles.introLogo}
+                resizeMode="contain"
+              />
+            </Animated.View>
+
             <Animated.View
               style={[
                 styles.badgePill,
@@ -212,6 +226,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 6,
     paddingBottom: 12,
+  },
+  logoWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    marginBottom: 10,
+    shadowColor: THEME.colors.shadowColor,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  introLogo: {
+    width: 64,
+    height: 64,
   },
   badgePill: {
     flexDirection: 'row',

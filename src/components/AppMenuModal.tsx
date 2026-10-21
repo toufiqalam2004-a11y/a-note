@@ -2,6 +2,7 @@ import React, { useEffect, useCallback } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   Modal,
   TouchableOpacity,
@@ -69,12 +70,19 @@ export const AppMenuModal: React.FC<AppMenuModalProps> = ({
         <View style={[styles.menuSheet, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
           {/* Header */}
           <View style={styles.menuHeader}>
-            <View>
-              <View style={styles.brandRow}>
-                <Text style={styles.brandA}>A </Text>
-                <Text style={styles.brandNote}>Note</Text>
+            <View style={styles.brandRowWithLogo}>
+              <Image
+                source={require('../../assets/images/anote-logo.png')}
+                style={styles.menuLogo}
+                resizeMode="contain"
+              />
+              <View>
+                <View style={styles.brandRow}>
+                  <Text style={styles.brandA}>A </Text>
+                  <Text style={styles.brandNote}>Note</Text>
+                </View>
+                <Text style={styles.menuSubtitle}>Client Video &amp; Revenue Tracker</Text>
               </View>
-              <Text style={styles.menuSubtitle}>Client Video &amp; Revenue Tracker</Text>
             </View>
             <TouchableOpacity
               style={styles.closeBtn}
@@ -208,6 +216,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F0EBF8',
     marginBottom: 12,
+  },
+  brandRowWithLogo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  menuLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
   },
   brandRow: {
     flexDirection: 'row',

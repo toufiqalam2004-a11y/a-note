@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
 
@@ -25,11 +25,20 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Center Brand / App Title */}
       <View style={styles.brandContainer}>
-        <View style={styles.titleRow}>
-          <Text style={styles.titleA}>A </Text>
-          <Text style={styles.titleNote}>Note</Text>
+        <View style={styles.brandRowWithLogo}>
+          <Image
+            source={require('../../assets/images/anote-logo.png')}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
+          <View>
+            <View style={styles.titleRow}>
+              <Text style={styles.titleA}>A </Text>
+              <Text style={styles.titleNote}>Note</Text>
+            </View>
+            <Text style={styles.subtitle}>Client Video &amp; Delivery Tracker</Text>
+          </View>
         </View>
-        <Text style={styles.subtitle}>Client Video & Delivery Tracker</Text>
       </View>
 
       {/* Right 3D Notification Bell Button */}
@@ -86,6 +95,16 @@ const styles = StyleSheet.create({
   brandContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  brandRowWithLogo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+  headerLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
   },
   titleRow: {
     flexDirection: 'row',
