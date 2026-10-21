@@ -26,10 +26,10 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Center Brand / App Title */}
       <View style={styles.brandContainer}>
         <View style={styles.titleRow}>
-          <Text style={styles.titleEdit}>Edit</Text>
-          <Text style={styles.titleFlow}>Flow</Text>
+          <Text style={styles.titleA}>A </Text>
+          <Text style={styles.titleNote}>Note</Text>
         </View>
-        <Text style={styles.subtitle}>Client Video Tracker</Text>
+        <Text style={styles.subtitle}>Client Video & Delivery Tracker</Text>
       </View>
 
       {/* Right 3D Notification Bell Button */}
@@ -91,13 +91,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
   },
-  titleEdit: {
+  titleA: {
     fontSize: 22,
     fontWeight: '800',
     color: THEME.colors.textNavy,
     letterSpacing: -0.3,
   },
-  titleFlow: {
+  titleNote: {
     fontSize: 22,
     fontWeight: '800',
     color: THEME.colors.mint,

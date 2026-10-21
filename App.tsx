@@ -37,8 +37,12 @@ import { ClientDetailsScreen } from './src/components/ClientDetailsScreen';
 import { AddClientModal } from './src/components/AddClientModal';
 import { VoiceAssistantModal } from './src/components/VoiceAssistantModal';
 import { VoiceToast } from './src/components/VoiceToast';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationBar, TabKey } from './src/components/NavigationBar';
 import { ClientHistoryExportModal } from './src/components/ClientHistoryExportModal';
+import { SplashAnimation } from './src/components/SplashAnimation';
+import { FirstLaunchIntro, INTRO_STORAGE_KEY } from './src/components/FirstLaunchIntro';
+import { BackupRestoreModal } from './src/components/BackupRestoreModal';
 
 export default function App() {
   const [clients, setClients] = useState<ClientWithVideos[]>([]);
@@ -50,8 +54,11 @@ export default function App() {
   const [isVoiceAssistantVisible, setIsVoiceAssistantVisible] = useState(false);
   const [isGlobalExportVisible, setIsGlobalExportVisible] = useState(false);
   const [clientForExport, setClientForExport] = useState<ClientWithVideos | null>(null);
+  const [isBackupRestoreVisible, setIsBackupRestoreVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastIsError, setToastIsError] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+  const [isIntroVisible, setIsIntroVisible] = useState(false);
 
   // Initialize DB and load clients
   const loadData = useCallback(async () => {
@@ -65,7 +72,7 @@ export default function App() {
         return data.find((c) => c.id === prevSelected.id) || null;
       });
     } catch (error) {
-      console.warn('[EditFlow] Error loading clients:', error);
+      console.warn('[A Note] Error loading clients:', error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -76,6 +83,16 @@ export default function App() {
     async function start() {
       await initDatabase();
       await loadData();
+
+      // Check if first-launch intro was completed
+      try {
+        const hasCompleted = await AsyncStorage.getItem(INTRO_STORAGE_KEY);
+        if (!hasCompleted) {
+          setIsIntroVisible(true);
+        }
+      } catch (e) {
+        console.warn('[A Note] Intro check failed:', e);
+      }
     }
     start();
   }, [loadData]);
@@ -409,8 +426,8 @@ export default function App() {
             <Header
               onMenuPress={() => {
                 Alert.alert(
-                  'EditFlow Menu',
-                  'Client Video Tracker\nClaymorphism Edition',
+                  'A Note Menu',
+                  'Client Video & Delivery Tracker\nClaymorphism Edition',
                   [
                     { text: 'Add Client', onPress: () => setIsAddClientVisible(true) },
                     { text: 'Voice Assistant', onPress: () => setIsVoiceAssistantVisible(true) },
@@ -425,6 +442,8 @@ export default function App() {
                         }
                       },
                     },
+                    { text: 'Backup & Restore', onPress: () => setIsBackupRestoreVisible(true) },
+                    { text: 'App Guide & Intro', onPress: () => setIsIntroVisible(true) },
                     { text: 'Close', style: 'cancel' },
                   ]
                 );
@@ -437,7 +456,7 @@ export default function App() {
             {isLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={THEME.colors.mint} />
-                <Text style={styles.loadingText}>Loading EditFlow...</Text>
+                <Text style={styles.loadingText}>Loading A Note...</Text>
               </View>
             ) : (
               <ScrollView
@@ -456,40 +475,80 @@ export default function App() {
                 {activeTab === 'home' && (
                   <>
                     {/* Welcome Card matching Screen 1 */}
-                    <WelcomeCard userName="Toufiq" />
-
-                    {/* Overall Progress Card matching Screen 1 */}
-                    <OverallProgressCard
-                      completedVideos={dashboardSummary.completedVideos}
-                      totalVideos={dashboardSummary.totalVideos}
+                    <WelcomeCard
+                      userName="Toufiq"
+                      onHowItWorks={() => setIsIntroVisible(true)}
                     />
 
-                    {/* 2x2 Statistics Cards Grid matching Screen 1 */}
-                    <DashboardSummaryCards summary={dashboardSummary} />
+                    {clients.length === 0 ? (
+                      <View style={styles.emptyHomeContainer}>
+                        <View style={styles.emptyHomeCard}>
+                          <View style={styles.emptyIconCircle}>
+                            <Ionicons name="sparkles" size={32} color={THEME.colors.mint} />
+                          </View>
+                          <Text style={styles.emptyHomeTitle}>Welcome to A Note</Text>
+                          <Text style={styles.emptyHomeSubtitle}>
+                            Track client video delivery quotas, reconcile advance payments, and generate official PDF/Excel reports offline.
+                          </Text>
 
-                    {/* Primary Mint Green 3D "+ Add Client" Button matching Screen 1 */}
-                    <View style={styles.addClientBtnContainer}>
-                      <TouchableOpacity
-                        style={styles.largeMintAddButton}
-                        onPress={() => setIsAddClientVisible(true)}
-                        activeOpacity={0.85}
-                      >
-                        <View style={styles.addBtnInnerRow}>
-                          <Ionicons name="add" size={22} color="#FFFFFF" />
-                          <Text style={styles.largeMintAddText}>Add Client</Text>
-                        </View>
-                        <View style={styles.arrowCircleBadge}>
-                          <Ionicons name="arrow-forward" size={16} color={THEME.colors.mint} />
-                        </View>
-                      </TouchableOpacity>
-                    </View>
+                          <TouchableOpacity
+                            style={styles.addFirstClientButton}
+                            onPress={() => setIsAddClientVisible(true)}
+                            activeOpacity={0.85}
+                          >
+                            <Ionicons name="add-circle" size={20} color="#FFFFFF" />
+                            <Text style={styles.addFirstClientText}>Add Your First Client</Text>
+                          </TouchableOpacity>
 
-                    {/* Recent Clients Section matching Screen 1 */}
-                    <RecentClientsCard
-                      clients={clients}
-                      onSelectClient={(client) => setSelectedClient(client)}
-                      onSeeAllPress={() => setActiveTab('clients')}
-                    />
+                          <TouchableOpacity
+                            style={styles.howItWorksButtonSecondary}
+                            onPress={() => setIsIntroVisible(true)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="bulb-outline" size={16} color={THEME.colors.mintDark} />
+                            <Text style={styles.howItWorksButtonText}>How It Works (Guide)</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      <>
+                        {/* Overall Progress Card matching Screen 1 */}
+                        <OverallProgressCard
+                          completedVideos={dashboardSummary.completedVideos}
+                          totalVideos={dashboardSummary.totalVideos}
+                        />
+
+                        {/* 2x2 Statistics Cards Grid matching Screen 1 */}
+                        <DashboardSummaryCards
+                          summary={dashboardSummary}
+                          clientCount={clients.length}
+                        />
+
+                        {/* Primary Mint Green 3D "+ Add Client" Button matching Screen 1 */}
+                        <View style={styles.addClientBtnContainer}>
+                          <TouchableOpacity
+                            style={styles.largeMintAddButton}
+                            onPress={() => setIsAddClientVisible(true)}
+                            activeOpacity={0.85}
+                          >
+                            <View style={styles.addBtnInnerRow}>
+                              <Ionicons name="add" size={22} color="#FFFFFF" />
+                              <Text style={styles.largeMintAddText}>Add Client</Text>
+                            </View>
+                            <View style={styles.arrowCircleBadge}>
+                              <Ionicons name="arrow-forward" size={16} color={THEME.colors.mint} />
+                            </View>
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* Recent Clients Section matching Screen 1 */}
+                        <RecentClientsCard
+                          clients={clients}
+                          onSelectClient={(client) => setSelectedClient(client)}
+                          onSeeAllPress={() => setActiveTab('clients')}
+                        />
+                      </>
+                    )}
                   </>
                 )}
 
@@ -598,7 +657,7 @@ export default function App() {
                   <View style={styles.moreTabContainer}>
                     <View style={styles.tabHeadingRow}>
                       <Text style={styles.tabTitle}>Settings & Diagnostics</Text>
-                      <Text style={styles.tabSubtitle}>EditFlow v1.0.0 Claymorphism</Text>
+                      <Text style={styles.tabSubtitle}>A Note v1.0.0 Claymorphism</Text>
                     </View>
 
                     <View style={styles.moreCard}>
@@ -616,9 +675,25 @@ export default function App() {
                       <View style={styles.moreRow}>
                         <Ionicons name="document-outline" size={18} color={THEME.colors.mint} />
                         <Text style={styles.moreRowText}>PDF & Excel (.xlsx) Engine</Text>
-                        <Text style={styles.moreBadge}>WINANSI SAFE</Text>
+                        <Text style={styles.moreBadge}>GENUINE &amp; VERIFIED</Text>
                       </View>
                     </View>
+
+                    {/* Local Backup & Restore Entry */}
+                    <TouchableOpacity
+                      style={styles.moreBackupBtn}
+                      onPress={() => setIsBackupRestoreVisible(true)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.moreBackupIconBox}>
+                        <Ionicons name="save-outline" size={20} color="#00D287" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.moreBackupTitle}>Local Backup &amp; Restore</Text>
+                        <Text style={styles.moreBackupDesc}>Export or restore your offline database</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
+                    </TouchableOpacity>
                   </View>
                 )}
 
@@ -667,6 +742,27 @@ export default function App() {
             }}
             onToggleVideo={handleToggleVideo}
           />
+        )}
+
+        {/* Local Backup & Restore Modal */}
+        <BackupRestoreModal
+          visible={isBackupRestoreVisible}
+          onClose={() => setIsBackupRestoreVisible(false)}
+          onRestoreSuccess={() => {
+            loadData();
+            showNotification('Data restored successfully!');
+          }}
+        />
+
+        {/* First-Launch Intro Modal */}
+        <FirstLaunchIntro
+          visible={isIntroVisible}
+          onGetStarted={() => setIsIntroVisible(false)}
+        />
+
+        {/* Minimal Premium Splash Animation */}
+        {showSplash && (
+          <SplashAnimation onFinish={() => setShowSplash(false)} />
         )}
       </SafeAreaView>
     </SafeAreaProvider>
@@ -864,6 +960,85 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
   },
+  emptyHomeContainer: {
+    paddingHorizontal: THEME.spacing.lg,
+    marginBottom: 20,
+  },
+  emptyHomeCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: THEME.colors.shadowColor,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: THEME.colors.mintLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 210, 135, 0.25)',
+  },
+  emptyHomeTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: THEME.colors.textNavy,
+    marginBottom: 8,
+  },
+  emptyHomeSubtitle: {
+    fontSize: 13,
+    color: THEME.colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 20,
+  },
+  addFirstClientButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: THEME.colors.mint,
+    borderRadius: 9999,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    width: '100%',
+    gap: 8,
+    shadowColor: THEME.colors.mint,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
+    marginBottom: 10,
+  },
+  addFirstClientText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  howItWorksButtonSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: THEME.colors.mintLight,
+    borderRadius: 9999,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    gap: 6,
+  },
+  howItWorksButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: THEME.colors.mintDark,
+  },
   reportsTabContainer: {
     paddingHorizontal: THEME.spacing.lg,
     paddingBottom: 20,
@@ -954,5 +1129,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 9999,
+  },
+  moreBackupBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 16,
+    marginTop: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: THEME.colors.shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
+    gap: 12,
+  },
+  moreBackupIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EBFBF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreBackupTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: THEME.colors.textNavy,
+  },
+  moreBackupDesc: {
+    fontSize: 11,
+    color: THEME.colors.textMuted,
+    marginTop: 2,
   },
 });

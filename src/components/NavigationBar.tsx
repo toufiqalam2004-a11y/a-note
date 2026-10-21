@@ -29,18 +29,18 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
   const isVoiceSelected = isVoiceActive || currentTab === 'voice';
 
   return (
-    <View style={[styles.navWrapper, { paddingBottom: bottomInset + 8 }]}>
+    <View style={[styles.navWrapper, { paddingBottom: bottomInset + 6 }]}>
       <View style={styles.navBar}>
-        {/* 1. Home Tab Button */}
+        {/* 1. LEFT TAB: Home */}
         <TouchableOpacity
           style={[
-            styles.tabButton,
+            styles.sideTabButton,
             isHomeActive ? styles.tabButtonActiveHome : styles.tabButtonInactive,
           ]}
           onPress={() => onTabChange('home')}
           activeOpacity={0.75}
           accessibilityRole="button"
-          accessibilityLabel="Home Tab"
+          accessibilityLabel="Home Dashboard"
           accessibilityState={{ selected: isHomeActive }}
         >
           <Ionicons
@@ -59,10 +59,54 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
           </Text>
         </TouchableOpacity>
 
-        {/* 2. Clients Tab Button */}
+        {/* 2. CENTER TAB: Prominent Circular Voice Button (Visually Larger) */}
+        <View style={styles.centerVoiceContainer}>
+          <TouchableOpacity
+            style={[
+              styles.centerVoiceButton,
+              isVoiceSelected
+                ? styles.centerVoiceButtonActive
+                : styles.centerVoiceButtonInactive,
+            ]}
+            onPress={() => {
+              if (onVoicePress) {
+                onVoicePress();
+              } else {
+                onTabChange('voice');
+              }
+            }}
+            activeOpacity={0.82}
+            accessibilityRole="button"
+            accessibilityLabel="Voice Control Assistant"
+            accessibilityState={{ selected: isVoiceSelected }}
+          >
+            <View
+              style={[
+                styles.voiceInnerRing,
+                isVoiceSelected && styles.voiceInnerRingActive,
+              ]}
+            >
+              <Ionicons
+                name="mic"
+                size={26}
+                color={isVoiceSelected ? '#FFFFFF' : THEME.colors.mint}
+              />
+            </View>
+          </TouchableOpacity>
+          <Text
+            style={[
+              styles.voiceLabel,
+              isVoiceSelected ? styles.voiceLabelActive : styles.voiceLabelInactive,
+            ]}
+          >
+            Voice
+          </Text>
+        </View>
+
+        {/* 3. RIGHT TAB: Clients */}
         <TouchableOpacity
           style={[
-            styles.tabButton,
+            styles.sideTabButton,
             isClientsActive
               ? styles.tabButtonActiveClients
               : styles.tabButtonInactiveClients,
@@ -70,7 +114,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
           onPress={() => onTabChange('clients')}
           activeOpacity={0.75}
           accessibilityRole="button"
-          accessibilityLabel="Clients Tab"
+          accessibilityLabel="Clients Directory"
           accessibilityState={{ selected: isClientsActive }}
         >
           <Ionicons
@@ -90,44 +134,6 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
             Clients
           </Text>
         </TouchableOpacity>
-
-        {/* 3. Voice Tab Button */}
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            isVoiceSelected
-              ? styles.tabButtonActiveVoice
-              : styles.tabButtonInactiveVoice,
-          ]}
-          onPress={() => {
-            if (onVoicePress) {
-              onVoicePress();
-            } else {
-              onTabChange('voice');
-            }
-          }}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel="Voice Control"
-          accessibilityState={{ selected: isVoiceSelected }}
-        >
-          <Ionicons
-            name="mic"
-            size={22}
-            color={THEME.colors.mint}
-          />
-          <Text
-            style={[
-              styles.tabLabel,
-              isVoiceSelected
-                ? styles.tabLabelActiveVoice
-                : styles.tabLabelInactiveVoice,
-            ]}
-            numberOfLines={1}
-          >
-            Voice
-          </Text>
-        </TouchableOpacity>
       </View>
     </View>
   );
@@ -136,7 +142,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
 const styles = StyleSheet.create({
   navWrapper: {
     paddingHorizontal: THEME.spacing.lg,
-    paddingTop: 6,
+    paddingTop: 4,
     backgroundColor: 'transparent',
     alignItems: 'center',
     width: '100%',
@@ -147,31 +153,32 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
     borderRadius: 9999,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 6,
     width: '100%',
     maxWidth: 390,
+    minHeight: 64,
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.98)',
     shadowColor: THEME.colors.shadowColor,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.14,
     shadowRadius: 16,
     elevation: 8,
   },
-  tabButton: {
+  // Side tabs: Home (Left) & Clients (Right)
+  sideTabButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
     borderRadius: 9999,
     minHeight: 46,
-    marginHorizontal: 3,
+    marginHorizontal: 4,
     gap: 6,
   },
-  // Inactive base states: distinct tappable button surfaces
   tabButtonInactive: {
     backgroundColor: 'rgba(240, 235, 248, 0.45)',
     borderWidth: 1,
@@ -182,12 +189,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(142, 138, 171, 0.18)',
   },
-  tabButtonInactiveVoice: {
-    backgroundColor: 'rgba(0, 210, 135, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(0, 210, 135, 0.22)',
-  },
-  // Active pill states: vibrant claymorphic accents with soft elevation
   tabButtonActiveHome: {
     backgroundColor: THEME.colors.mintLight,
     borderWidth: 1.5,
@@ -208,17 +209,61 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 2,
   },
-  tabButtonActiveVoice: {
-    backgroundColor: THEME.colors.mintLight,
-    borderWidth: 1.5,
-    borderColor: 'rgba(0, 210, 135, 0.4)',
-    shadowColor: THEME.colors.mint,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 3,
+  // Center Voice Tab: Visually Larger & Prominent
+  centerVoiceContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 6,
+    top: -4, // Subtle elevated lift
   },
-  // Tab labels
+  centerVoiceButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: THEME.colors.mint,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  centerVoiceButtonInactive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: 'rgba(0, 210, 135, 0.3)',
+  },
+  centerVoiceButtonActive: {
+    backgroundColor: THEME.colors.mint,
+    borderColor: '#FFFFFF',
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+  },
+  voiceInnerRing: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 210, 135, 0.12)',
+  },
+  voiceInnerRingActive: {
+    backgroundColor: 'transparent',
+  },
+  voiceLabel: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  voiceLabelInactive: {
+    fontWeight: '700',
+    color: THEME.colors.mintDark,
+  },
+  voiceLabelActive: {
+    fontWeight: '900',
+    color: THEME.colors.mintDark,
+  },
+  // Side Tab Labels
   tabLabel: {
     fontSize: 13,
   },
@@ -230,10 +275,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#7D789B',
   },
-  tabLabelInactiveVoice: {
-    fontWeight: '700',
-    color: THEME.colors.mintDark,
-  },
   tabLabelActiveHome: {
     fontWeight: '800',
     color: THEME.colors.mintDark,
@@ -241,9 +282,5 @@ const styles = StyleSheet.create({
   tabLabelActiveClients: {
     fontWeight: '800',
     color: THEME.colors.purpleDark,
-  },
-  tabLabelActiveVoice: {
-    fontWeight: '800',
-    color: THEME.colors.mintDark,
   },
 });

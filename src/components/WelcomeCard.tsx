@@ -1,14 +1,15 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
 
 interface WelcomeCardProps {
   userName?: string;
+  onHowItWorks?: () => void;
 }
 
 export const WelcomeCard: React.FC<WelcomeCardProps> = ({
   userName = 'Toufiq',
+  onHowItWorks,
 }) => {
   return (
     <View style={styles.card}>
@@ -21,6 +22,16 @@ export const WelcomeCard: React.FC<WelcomeCardProps> = ({
         <Text style={styles.subtitleText}>
           Keep creating amazing edits
         </Text>
+        {onHowItWorks && (
+          <TouchableOpacity
+            style={styles.howItWorksChip}
+            onPress={onHowItWorks}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="bulb-outline" size={13} color={THEME.colors.mintDark} />
+            <Text style={styles.howItWorksText}>How It Works</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Right 3D Creator Avatar & Floating Cam */}
@@ -97,6 +108,24 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '500',
     lineHeight: 18,
+  },
+  howItWorksChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: THEME.colors.mintLight,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 210, 135, 0.25)',
+  },
+  howItWorksText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.colors.mintDark,
   },
   illustrationContainer: {
     width: 86,

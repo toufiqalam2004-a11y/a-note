@@ -7,32 +7,36 @@ import { formatCurrency } from '../utils/calculations';
 
 interface DashboardSummaryCardsProps {
   summary: DashboardSummary;
+  clientCount: number;
 }
 
 export const DashboardSummaryCards: React.FC<DashboardSummaryCardsProps> = ({
   summary,
+  clientCount,
 }) => {
   return (
     <View style={styles.gridContainer}>
-      {/* Row 1 */}
+      {/* Row 1: Delivery Quotas */}
       <View style={styles.cardsRow}>
-        {/* Card 1: Total Videos */}
+        {/* Card 1: Total Videos & Client Count */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={[styles.iconCircle, styles.purpleIconBg]}>
               <Ionicons name="videocam" size={16} color={THEME.colors.purple} />
             </View>
-            <Text style={styles.cardLabel}>Total Videos</Text>
+            <Text style={styles.cardLabel}>Video Quota</Text>
           </View>
           <Text style={styles.cardNumber}>{summary.totalVideos}</Text>
-          <Text style={styles.cardSubText}>Across all clients</Text>
+          <Text style={styles.cardSubText}>
+            {clientCount} active {clientCount === 1 ? 'client' : 'clients'}
+          </Text>
         </View>
 
-        {/* Card 2: Completed */}
+        {/* Card 2: Completed Videos & Earned Revenue */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={[styles.iconCircle, styles.mintIconBg]}>
-              <Ionicons name="checkmark" size={16} color={THEME.colors.mint} />
+              <Ionicons name="checkmark-done" size={16} color={THEME.colors.mint} />
             </View>
             <Text style={styles.cardLabel}>Completed</Text>
           </View>
@@ -43,13 +47,13 @@ export const DashboardSummaryCards: React.FC<DashboardSummaryCardsProps> = ({
         </View>
       </View>
 
-      {/* Row 2 */}
+      {/* Row 2: Work Value & Advance Reconciliation */}
       <View style={styles.cardsRow}>
-        {/* Card 3: Remaining */}
+        {/* Card 3: Remaining Videos & Pending Work Value */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={[styles.iconCircle, styles.amberIconBg]}>
-              <Ionicons name="time" size={16} color={THEME.colors.amber} />
+              <Ionicons name="hourglass-outline" size={16} color={THEME.colors.amber} />
             </View>
             <Text style={styles.cardLabel}>Remaining</Text>
           </View>
@@ -59,19 +63,19 @@ export const DashboardSummaryCards: React.FC<DashboardSummaryCardsProps> = ({
           </Text>
         </View>
 
-        {/* Card 4: Total Payment */}
+        {/* Card 4: Payments Received & Unused Balance */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={[styles.iconCircle, styles.walletIconBg]}>
-              <Ionicons name="wallet" size={16} color={THEME.colors.purple} />
+              <Ionicons name="wallet-outline" size={16} color={THEME.colors.purple} />
             </View>
-            <Text style={styles.cardLabel}>Total Payment</Text>
+            <Text style={styles.cardLabel}>Payments</Text>
           </View>
           <Text style={styles.cardNumberCompact}>
             {formatCurrency(summary.totalValue)}
           </Text>
-          <Text style={styles.cardSubText}>
-            {formatCurrency(summary.totalUnusedBudget)} unused
+          <Text style={[styles.cardSubText, summary.totalUnusedBudget > 0 && styles.amberSubText]}>
+            {formatCurrency(summary.totalUnusedBudget)} unused balance
           </Text>
         </View>
       </View>
@@ -153,5 +157,9 @@ const styles = StyleSheet.create({
   mintSubText: {
     color: THEME.colors.mint,
     fontWeight: '700',
+  },
+  amberSubText: {
+    color: THEME.colors.amber,
+    fontWeight: '600',
   },
 });
