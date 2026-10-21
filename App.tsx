@@ -622,11 +622,11 @@ export default function App() {
                   </View>
                 )}
 
-                <View style={{ height: 90 }} />
+                <View style={{ height: 120 }} />
               </ScrollView>
             )}
 
-            {/* Bottom 5-Tab NavigationBar matching reference image */}
+            {/* Bottom 3-Tab NavigationBar */}
             <NavigationBar
               currentTab={activeTab}
               onTabChange={(tab) => {
@@ -634,6 +634,7 @@ export default function App() {
                 setSelectedClient(null);
               }}
               onVoicePress={() => setIsVoiceAssistantVisible(true)}
+              isVoiceActive={isVoiceAssistantVisible}
             />
           </View>
         )}

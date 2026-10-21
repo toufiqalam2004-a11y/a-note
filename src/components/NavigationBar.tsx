@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME } from '../constants/theme';
 
 export type TabKey = 'home' | 'clients' | 'voice' | 'reports' | 'more';
@@ -9,88 +10,123 @@ interface NavigationBarProps {
   currentTab: TabKey;
   onTabChange: (tab: TabKey) => void;
   onVoicePress?: () => void;
+  isVoiceActive?: boolean;
 }
 
 export const NavigationBar: React.FC<NavigationBarProps> = ({
   currentTab,
   onTabChange,
   onVoicePress,
+  isVoiceActive = false,
 }) => {
+  const insets = useSafeAreaInsets();
+  // Ensure the navigation bar is positioned strictly above the Android system navigation bar
+  // (3-button navigation ~48dp, gesture navigation ~16-24dp, or minimum 12dp)
+  const bottomInset = Math.max(insets.bottom, 12);
+
+  const isHomeActive = currentTab === 'home';
+  const isClientsActive = currentTab === 'clients';
+  const isVoiceSelected = isVoiceActive || currentTab === 'voice';
+
   return (
-    <View style={styles.navWrapper}>
+    <View style={[styles.navWrapper, { paddingBottom: bottomInset + 8 }]}>
       <View style={styles.navBar}>
-        {/* 1. Home Tab (Visually prominent with larger touch area) */}
+        {/* 1. Home Tab Button */}
         <TouchableOpacity
           style={[
             styles.tabButton,
-            styles.prominentTab,
-            currentTab === 'home' && styles.tabButtonActiveHome,
+            isHomeActive ? styles.tabButtonActiveHome : styles.tabButtonInactive,
           ]}
           onPress={() => onTabChange('home')}
           activeOpacity={0.75}
           accessibilityRole="button"
           accessibilityLabel="Home Tab"
+          accessibilityState={{ selected: isHomeActive }}
         >
           <Ionicons
-            name={currentTab === 'home' ? 'home' : 'home-outline'}
-            size={22}
-            color={currentTab === 'home' ? THEME.colors.mint : THEME.colors.textMuted}
+            name={isHomeActive ? 'home' : 'home-outline'}
+            size={20}
+            color={isHomeActive ? THEME.colors.mint : THEME.colors.textMuted}
           />
           <Text
             style={[
               styles.tabLabel,
-              currentTab === 'home' && styles.tabLabelActiveHome,
+              isHomeActive ? styles.tabLabelActiveHome : styles.tabLabelInactive,
             ]}
+            numberOfLines={1}
           >
             Home
           </Text>
         </TouchableOpacity>
 
-        {/* 2. Clients Tab (Directly beside Home) */}
+        {/* 2. Clients Tab Button */}
         <TouchableOpacity
           style={[
             styles.tabButton,
-            styles.clientsTab,
-            currentTab === 'clients' && styles.tabButtonActiveClients,
+            isClientsActive
+              ? styles.tabButtonActiveClients
+              : styles.tabButtonInactiveClients,
           ]}
           onPress={() => onTabChange('clients')}
           activeOpacity={0.75}
           accessibilityRole="button"
           accessibilityLabel="Clients Tab"
+          accessibilityState={{ selected: isClientsActive }}
         >
           <Ionicons
-            name={currentTab === 'clients' ? 'people' : 'people-outline'}
+            name={isClientsActive ? 'people' : 'people-outline'}
             size={20}
-            color={currentTab === 'clients' ? THEME.colors.purple : THEME.colors.textMuted}
+            color={isClientsActive ? THEME.colors.purple : '#8E8AAB'}
           />
           <Text
             style={[
               styles.tabLabel,
-              currentTab === 'clients' && styles.tabLabelActiveClients,
+              isClientsActive
+                ? styles.tabLabelActiveClients
+                : styles.tabLabelInactiveClientsText,
             ]}
+            numberOfLines={1}
           >
             Clients
           </Text>
         </TouchableOpacity>
 
-        {/* 3. Voice Tab (Visually prominent with 3D mint claymorphic badge) */}
+        {/* 3. Voice Tab Button */}
         <TouchableOpacity
           style={[
             styles.tabButton,
-            styles.prominentTab,
-            styles.voiceTabPill,
+            isVoiceSelected
+              ? styles.tabButtonActiveVoice
+              : styles.tabButtonInactiveVoice,
           ]}
           onPress={() => {
-            if (onVoicePress) onVoicePress();
+            if (onVoicePress) {
+              onVoicePress();
+            } else {
+              onTabChange('voice');
+            }
           }}
-          activeOpacity={0.8}
+          activeOpacity={0.75}
           accessibilityRole="button"
           accessibilityLabel="Voice Control"
+          accessibilityState={{ selected: isVoiceSelected }}
         >
-          <View style={styles.voiceMicCircle}>
-            <Ionicons name="mic" size={17} color="#FFFFFF" />
-          </View>
-          <Text style={styles.voiceLabel}>Voice</Text>
+          <Ionicons
+            name="mic"
+            size={22}
+            color={THEME.colors.mint}
+          />
+          <Text
+            style={[
+              styles.tabLabel,
+              isVoiceSelected
+                ? styles.tabLabelActiveVoice
+                : styles.tabLabelInactiveVoice,
+            ]}
+            numberOfLines={1}
+          >
+            Voice
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -100,10 +136,10 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
 const styles = StyleSheet.create({
   navWrapper: {
     paddingHorizontal: THEME.spacing.lg,
-    paddingBottom: 16,
-    paddingTop: 4,
+    paddingTop: 6,
     backgroundColor: 'transparent',
     alignItems: 'center',
+    width: '100%',
   },
   navBar: {
     flexDirection: 'row',
@@ -111,76 +147,102 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
     borderRadius: 9999,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 6,
     width: '100%',
-    maxWidth: 380,
+    maxWidth: 390,
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.95)',
+    borderColor: 'rgba(255, 255, 255, 0.98)',
     shadowColor: THEME.colors.shadowColor,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
     elevation: 8,
   },
   tabButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
+    paddingHorizontal: 8,
     borderRadius: 9999,
-  },
-  prominentTab: {
-    paddingHorizontal: 16,
+    minHeight: 46,
+    marginHorizontal: 3,
     gap: 6,
-    minHeight: 44,
   },
-  clientsTab: {
-    paddingHorizontal: 14,
-    gap: 6,
-    minHeight: 44,
+  // Inactive base states: distinct tappable button surfaces
+  tabButtonInactive: {
+    backgroundColor: 'rgba(240, 235, 248, 0.45)',
+    borderWidth: 1,
+    borderColor: 'rgba(142, 138, 171, 0.15)',
   },
+  tabButtonInactiveClients: {
+    backgroundColor: 'rgba(240, 235, 248, 0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(142, 138, 171, 0.18)',
+  },
+  tabButtonInactiveVoice: {
+    backgroundColor: 'rgba(0, 210, 135, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 210, 135, 0.22)',
+  },
+  // Active pill states: vibrant claymorphic accents with soft elevation
   tabButtonActiveHome: {
-    backgroundColor: '#E8FBF2', // Mint pastel pill
+    backgroundColor: THEME.colors.mintLight,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 210, 135, 0.35)',
+    shadowColor: THEME.colors.mint,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    elevation: 2,
   },
   tabButtonActiveClients: {
-    backgroundColor: '#F3EEFD', // Soft purple pastel pill
+    backgroundColor: THEME.colors.purpleLight,
+    borderWidth: 1.5,
+    borderColor: 'rgba(124, 92, 252, 0.35)',
+    shadowColor: THEME.colors.purple,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    elevation: 2,
   },
+  tabButtonActiveVoice: {
+    backgroundColor: THEME.colors.mintLight,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 210, 135, 0.4)',
+    shadowColor: THEME.colors.mint,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  // Tab labels
   tabLabel: {
     fontSize: 13,
+  },
+  tabLabelInactive: {
     fontWeight: '600',
     color: THEME.colors.textMuted,
   },
+  tabLabelInactiveClientsText: {
+    fontWeight: '600',
+    color: '#7D789B',
+  },
+  tabLabelInactiveVoice: {
+    fontWeight: '700',
+    color: THEME.colors.mintDark,
+  },
   tabLabelActiveHome: {
-    color: THEME.colors.mint,
     fontWeight: '800',
+    color: THEME.colors.mintDark,
   },
   tabLabelActiveClients: {
-    color: THEME.colors.purple,
     fontWeight: '800',
+    color: THEME.colors.purpleDark,
   },
-  voiceTabPill: {
-    backgroundColor: '#E8FBF2',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 210, 135, 0.3)',
-  },
-  voiceMicCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: THEME.colors.mint,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: THEME.colors.mint,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  voiceLabel: {
-    fontSize: 13,
+  tabLabelActiveVoice: {
     fontWeight: '800',
     color: THEME.colors.mintDark,
   },
