@@ -1,16 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { requireOptionalNativeModule } from 'expo';
-import Constants, { AppOwnership } from 'expo-constants';
+import Constants, { ExecutionEnvironment, AppOwnership } from 'expo-constants';
 
 /**
  * Checks whether the app is currently running inside standard Expo Go.
- * Standard Expo Go only includes pre-bundled Expo SDK native modules
- * and cannot execute third-party native code like `expo-speech-recognition`.
  */
 export const isRunningInExpoGo: boolean =
+  Constants.executionEnvironment === ExecutionEnvironment.StoreClient ||
   Constants.appOwnership === AppOwnership.Expo ||
-  Constants.appOwnership === 'expo';
+  (Constants.appOwnership as any) === 'expo';
 
 let cachedModule: any = null;
 let moduleResolutionAttempted = false;

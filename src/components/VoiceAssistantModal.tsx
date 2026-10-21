@@ -25,6 +25,7 @@ import {
   startSherpaOfflineListening,
   stopSherpaOfflineListening,
   getOrInitializeSherpaEngine,
+  getSherpaDiagnostics,
 } from '../services/sherpaOfflineSpeechService';
 import {
   checkSherpaModelInstalled,
@@ -151,6 +152,20 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     setInitError(null);
 
     try {
+      const diag = await getSherpaDiagnostics();
+      console.log('[VoiceAssistantModal] Diagnostics at launch:', JSON.stringify(diag));
+
+      // 1. Check if genuinely inside Expo Go store client
+      if (isRunningInExpoGo()) {
+        setEngineReady(false);
+        setStatusMessage(
+          'Expo Go detected: Offline voice recognition requires the standalone A Note APK. Native C++ ONNX speech binaries cannot run inside Expo Go. You can type commands below.'
+        );
+        setFeedbackColor(THEME.colors.amber);
+        return;
+      }
+
+      // 2. Check model files on disk
       const res = await checkSherpaModelInstalled();
       setFileChecks(res.fileDetails);
 
@@ -163,22 +178,15 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       }
 
       setModelInstalled(true);
-
-      if (isRunningInExpoGo) {
-        setEngineReady(false);
-        setStatusMessage('Expo Go detected: Offline voice requires a standalone APK build. You can type commands below.');
-        setFeedbackColor(THEME.colors.amber);
-        return;
-      }
-
       setStatusMessage('Initializing offline speech recognition engine...');
       setFeedbackColor(THEME.colors.purple);
 
+      // 3. Initialize native streaming STT engine
       const engineRes = await getOrInitializeSherpaEngine();
       if (engineRes.engine) {
         setEngineReady(true);
         setInitError(null);
-        setStatusMessage('Ready! Tap microphone to speak offline.');
+        setStatusMessage('100% Offline Speech Ready! Tap microphone to speak.');
         setFeedbackColor(THEME.colors.mint);
       } else {
         setEngineReady(false);
@@ -333,9 +341,9 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     setTranscript('');
     setFeedbackColor(THEME.colors.mint);
 
-    if (isRunningInExpoGo) {
+    if (isRunningInExpoGo()) {
       setVoiceState('listening');
-      setStatusMessage('Expo Go detected: Type a command below or tap an example chip.');
+      setStatusMessage('Expo Go detected: Offline voice requires the standalone APK. Type a command below or tap an example chip.');
       return;
     }
 
