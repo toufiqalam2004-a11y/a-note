@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   BackHandler,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,10 +24,13 @@ import {
   isSherpaNativeAvailable,
   startSherpaOfflineListening,
   stopSherpaOfflineListening,
+  getOrInitializeSherpaEngine,
 } from '../services/sherpaOfflineSpeechService';
 import {
   checkSherpaModelInstalled,
   downloadSherpaModel,
+  deleteSherpaModel,
+  DetailedFileCheck,
   SHERPA_ZIPFORMER_EN_20M,
 } from '../services/sherpaModelManager';
 
@@ -64,6 +68,13 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   const [isDownloadingModel, setIsDownloadingModel] = useState<boolean>(false);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [downloadStatusText, setDownloadStatusText] = useState<string>('');
+
+  // Native Sherpa-ONNX engine readiness state
+  const [engineReady, setEngineReady] = useState<boolean>(false);
+  const [isInitializingEngine, setIsInitializingEngine] = useState<boolean>(false);
+  const [initError, setInitError] = useState<string | null>(null);
+  const [fileChecks, setFileChecks] = useState<DetailedFileCheck[] | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false);
 
   // Prevent duplicate transcript triggers
   const lastProcessedRef = useRef<{ text: string; time: number }>({ text: '', time: 0 });
@@ -134,34 +145,74 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     };
   }, [voiceState, wave1, wave2, wave3, wave4]);
 
-  // Check offline voice model installation status
+  // Check offline voice model installation status & initialize engine
+  const initializeEngineFlow = useCallback(async () => {
+    setIsInitializingEngine(true);
+    setInitError(null);
+
+    try {
+      const res = await checkSherpaModelInstalled();
+      setFileChecks(res.fileDetails);
+
+      if (!res.isInstalled) {
+        setModelInstalled(false);
+        setEngineReady(false);
+        setStatusMessage('Download the free offline voice model (~43 MB) to enable speech.');
+        setFeedbackColor(THEME.colors.purple);
+        return;
+      }
+
+      setModelInstalled(true);
+
+      if (isRunningInExpoGo) {
+        setEngineReady(false);
+        setStatusMessage('Expo Go detected: Offline voice requires a standalone APK build. You can type commands below.');
+        setFeedbackColor(THEME.colors.amber);
+        return;
+      }
+
+      setStatusMessage('Initializing offline speech recognition engine...');
+      setFeedbackColor(THEME.colors.purple);
+
+      const engineRes = await getOrInitializeSherpaEngine();
+      if (engineRes.engine) {
+        setEngineReady(true);
+        setInitError(null);
+        setStatusMessage('Ready! Tap microphone to speak offline.');
+        setFeedbackColor(THEME.colors.mint);
+      } else {
+        setEngineReady(false);
+        const errMsg = engineRes.error || 'Failed to initialize offline speech recognition engine.';
+        setInitError(errMsg);
+        setStatusMessage(errMsg);
+        setFeedbackColor('#FF5E7E');
+      }
+    } catch (err: any) {
+      setEngineReady(false);
+      const errMsg = err?.message || 'Error checking offline speech engine.';
+      setInitError(errMsg);
+      setStatusMessage(errMsg);
+      setFeedbackColor('#FF5E7E');
+    } finally {
+      setIsInitializingEngine(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!visible) return;
-    let isMounted = true;
-    (async () => {
-      const res = await checkSherpaModelInstalled();
-      if (isMounted) {
-        setModelInstalled(res.isInstalled);
-        if (!res.isInstalled) {
-          setStatusMessage('Download the free offline voice model (~43 MB) to enable speech.');
-        } else {
-          setStatusMessage('Tap microphone to speak offline.');
-        }
-      }
-    })();
+    initializeEngineFlow();
     return () => {
-      isMounted = false;
       stopSherpaOfflineListening();
     };
-  }, [visible]);
+  }, [visible, initializeEngineFlow]);
 
   const handleStopListening = useCallback(() => {
     stopSherpaOfflineListening();
     if (voiceState === 'listening') {
       setVoiceState('idle');
-      setStatusMessage('Tap microphone to speak');
+      setStatusMessage(engineReady ? 'Tap microphone to speak' : 'Speech engine not ready');
     }
-  }, [voiceState]);
+  }, [voiceState, engineReady]);
 
   // Safe Android BackHandler
   const handleSafeBackOrClose = useCallback(() => {
@@ -249,13 +300,33 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
 
     if (result.success) {
       setModelInstalled(true);
-      setStatusMessage('Offline model ready! Tap microphone to speak.');
-      setFeedbackColor(THEME.colors.mint);
-      onNotify('Offline voice model installed successfully!');
+      onNotify('Offline voice model downloaded successfully! Initializing engine...');
+      await initializeEngineFlow();
     } else {
       setStatusMessage(result.error || 'Failed to download model. You can type commands below.');
       setFeedbackColor('#FF5E7E');
     }
+  };
+
+  const handleRepairOrRedownload = () => {
+    Alert.alert(
+      'Repair / Re-download Model',
+      'This will clear the current offline model files (~43 MB) and re-download fresh model files. Would you like to proceed?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Re-download',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteSherpaModel();
+            setModelInstalled(false);
+            setEngineReady(false);
+            setInitError(null);
+            handleDownloadModel();
+          },
+        },
+      ]
+    );
   };
 
   const handleStartListening = async () => {
@@ -271,6 +342,18 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     if (!modelInstalled) {
       setStatusMessage('Download the offline voice model to start.');
       setFeedbackColor(THEME.colors.amber);
+      return;
+    }
+
+    if (!engineReady) {
+      if (initError) {
+        setStatusMessage(initError);
+        setFeedbackColor('#FF5E7E');
+      } else {
+        setStatusMessage('Offline recognition engine is not ready. Initializing...');
+        setFeedbackColor(THEME.colors.purple);
+        await initializeEngineFlow();
+      }
       return;
     }
 
@@ -495,10 +578,89 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
               </Text>
             </View>
 
-            {modelInstalled && (
+            {engineReady && (
               <View style={styles.offlineReadyBadge}>
                 <Ionicons name="checkmark-circle" size={13} color={THEME.colors.mint} />
-                <Text style={styles.offlineReadyText}>100% Offline Speech Active</Text>
+                <Text style={styles.offlineReadyText}>100% Offline Speech Ready</Text>
+              </View>
+            )}
+
+            {isInitializingEngine && (
+              <View style={styles.offlineInitializingBadge}>
+                <ActivityIndicator size="small" color="#7C5CFC" style={{ marginRight: 6 }} />
+                <Text style={styles.offlineInitializingText}>Initializing Native Offline Engine...</Text>
+              </View>
+            )}
+
+            {!engineReady && initError && (
+              <View style={styles.offlineErrorBadge}>
+                <Ionicons name="alert-circle" size={13} color="#FF5E7E" />
+                <Text style={styles.offlineErrorBadgeText}>Speech Engine Setup Required</Text>
+              </View>
+            )}
+
+            {/* Diagnostic Card shown when engine initialization failed */}
+            {!engineReady && initError && (
+              <View style={styles.errorDiagnosticBox}>
+                <View style={styles.errorDiagHeader}>
+                  <Ionicons name="warning-outline" size={16} color="#FF5E7E" />
+                  <Text style={styles.errorDiagTitle}>Initialization Diagnostic</Text>
+                </View>
+                <Text style={styles.errorDiagMessage}>{initError}</Text>
+
+                <View style={styles.diagButtonsRow}>
+                  <TouchableOpacity
+                    style={styles.retryButton}
+                    onPress={initializeEngineFlow}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="refresh" size={14} color="#FFFFFF" />
+                    <Text style={styles.retryButtonText}>Retry Initialization</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.repairButton}
+                    onPress={handleRepairOrRedownload}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="cloud-download-outline" size={14} color="#7C5CFC" />
+                    <Text style={styles.repairButtonText}>Re-download Model</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {fileChecks && fileChecks.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.toggleDiagBtn}
+                    onPress={() => setShowDiagnostics(!showDiagnostics)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.toggleDiagText}>
+                      {showDiagnostics ? '▲ Hide Model Files Status' : '▼ Inspect Model Files on Disk'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {showDiagnostics && fileChecks && (
+                  <View style={styles.fileDetailsList}>
+                    {fileChecks.map((f, i) => (
+                      <View key={i} style={styles.fileDetailItem}>
+                        <Ionicons
+                          name={f.exists && f.actualBytes >= f.expectedMinBytes ? 'checkmark-circle' : 'close-circle'}
+                          size={14}
+                          color={f.exists && f.actualBytes >= f.expectedMinBytes ? THEME.colors.mint : '#FF5E7E'}
+                        />
+                        <View style={{ flex: 1, marginLeft: 6 }}>
+                          <Text style={styles.fileDetailName} numberOfLines={1}>{f.name}</Text>
+                          <Text style={styles.fileDetailSub}>
+                            {f.exists
+                              ? `${(f.actualBytes / (1024 * 1024)).toFixed(2)} MB (Present)`
+                              : 'Missing on disk'}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
             )}
 
@@ -895,6 +1057,127 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: THEME.colors.textNavy,
+  },
+  offlineInitializingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(124, 92, 252, 0.12)',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    marginTop: 8,
+  },
+  offlineInitializingText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#7C5CFC',
+  },
+  offlineErrorBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 94, 126, 0.12)',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    marginTop: 8,
+    gap: 5,
+  },
+  offlineErrorBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FF5E7E',
+  },
+  errorDiagnosticBox: {
+    width: '100%',
+    backgroundColor: '#FFF5F7',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#FFD4DD',
+    padding: 14,
+    marginTop: 12,
+  },
+  errorDiagHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+    gap: 6,
+  },
+  errorDiagTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FF5E7E',
+  },
+  errorDiagMessage: {
+    fontSize: 12,
+    color: THEME.colors.textNavy,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  diagButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  retryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#7C5CFC',
+    borderRadius: 10,
+    paddingVertical: 9,
+    gap: 6,
+  },
+  retryButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  repairButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: 'rgba(124, 92, 252, 0.3)',
+    borderRadius: 10,
+    paddingVertical: 9,
+    gap: 6,
+  },
+  repairButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#7C5CFC',
+  },
+  toggleDiagBtn: {
+    marginTop: 10,
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  toggleDiagText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.colors.textMuted,
+  },
+  fileDetailsList: {
+    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 10,
+    gap: 6,
+  },
+  fileDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  fileDetailName: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.colors.textNavy,
+  },
+  fileDetailSub: {
+    fontSize: 10,
+    color: THEME.colors.textMuted,
   },
 });
 

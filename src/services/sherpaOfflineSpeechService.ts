@@ -1,7 +1,11 @@
 import { Platform, PermissionsAndroid } from 'react-native';
-import { requireOptionalNativeModule } from 'expo';
 import Constants, { AppOwnership } from 'expo-constants';
-import { checkSherpaModelInstalled, getSherpaModelDirectory } from './sherpaModelManager';
+import { requireOptionalNativeModule } from 'expo';
+import {
+  checkSherpaModelInstalled,
+  getSherpaModelDirectory,
+  getSherpaModelNativePath,
+} from './sherpaModelManager';
 
 /**
  * Checks whether the app is currently running inside standard Expo Go.
@@ -136,13 +140,14 @@ export async function getOrInitializeSherpaEngine(): Promise<{
 
   try {
     isInitializingEngine = true;
-    const modelDir = getSherpaModelDirectory();
+    const rawNativeDir = getSherpaModelNativePath();
+    // Ensure clean POSIX path without file:// or trailing slash
+    const cleanNativeDir = rawNativeDir.replace(/^file:\/\//, '').replace(/\/+$/, '');
 
-    // Remove trailing slash if present for native directory resolution
-    const cleanDir = modelDir.endsWith('/') ? modelDir.slice(0, -1) : modelDir;
+    console.log('[SherpaSpeech] Initializing native engine with clean path:', cleanNativeDir);
 
     const engine = await native.stt.createStreamingSTT({
-      modelPath: { type: 'file', path: cleanDir },
+      modelPath: { type: 'file', path: cleanNativeDir },
       modelType: 'transducer',
       enableEndpoint: true,
       decodingMethod: 'greedy_search',
@@ -151,7 +156,8 @@ export async function getOrInitializeSherpaEngine(): Promise<{
     });
 
     activeEngine = engine;
-    activeEngineModelDir = cleanDir;
+    activeEngineModelDir = cleanNativeDir;
+    console.log('[SherpaSpeech] Offline speech engine initialized successfully!');
     return { engine: activeEngine };
   } catch (err: any) {
     console.warn('[SherpaSpeech] Engine initialization failed:', err);

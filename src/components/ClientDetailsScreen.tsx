@@ -15,6 +15,7 @@ import { ClientWithVideos, VideoItem } from '../types';
 import { THEME } from '../constants/theme';
 import { formatCurrency, formatDate, formatTime } from '../utils/calculations';
 import { ClientHistoryExportModal } from './ClientHistoryExportModal';
+import { getDeterministicVideoType } from '../constants/videoTypes';
 
 interface ClientDetailsScreenProps {
   client: ClientWithVideos;
@@ -25,18 +26,8 @@ interface ClientDetailsScreenProps {
   onOpenVoice: () => void;
   onDeleteClient: (clientId: string) => void;
   onEditClient?: (client: ClientWithVideos) => void;
+  onUpdateVideoType?: (videoId: string, videoType: string) => void;
 }
-
-const SAMPLE_TITLES = [
-  'Cinematic Edit',
-  'Short Edit',
-  'Football Edit',
-  'Highlight Reel',
-  'YouTube Vlog',
-  'Reels Cut',
-  'Documentary Edit',
-  'Commercial Promo',
-];
 
 export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
   client,
@@ -47,6 +38,7 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
   onOpenVoice,
   onDeleteClient,
   onEditClient,
+  onUpdateVideoType,
 }) => {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'videos' | 'history' | 'reports'>('videos');
@@ -333,10 +325,12 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
           ) : (
             videos.map((vid) => {
               const isCompleted = vid.isCompleted;
-              const sampleTitle =
-                vid.title && vid.title !== `Video ${vid.videoNumber}`
-                  ? vid.title
-                  : SAMPLE_TITLES[(vid.videoNumber - 1) % SAMPLE_TITLES.length];
+              const videoSubtitle = getDeterministicVideoType(
+                vid.videoNumber,
+                client.videoTypes,
+                vid.videoType || (vid.title && vid.title !== `Video ${vid.videoNumber}` ? vid.title : null),
+                client.videoTypes && client.videoTypes.length > 0 ? '' : 'No type selected'
+              );
               const dateDisplay = vid.completedAt
                 ? formatDate(vid.completedAt)
                 : '16 Oct 2026';
@@ -381,7 +375,7 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
                     >
                       Video {vid.videoNumber}
                     </Text>
-                    <Text style={styles.videoSubtitle}>{sampleTitle}</Text>
+                    <Text style={styles.videoSubtitle}>{videoSubtitle}</Text>
                   </TouchableOpacity>
 
                   {/* Right: Dedicated status button and isolated dots */}
@@ -514,7 +508,72 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
                     {formatCurrency(client.ratePerVideo)}
                   </Text>
                 </View>
+
+                <View style={styles.videoMetaItem}>
+                  <Text style={styles.videoMetaLabel}>Video Type</Text>
+                  <Text style={[styles.videoMetaVal, { color: THEME.colors.purple }]}>
+                    {getDeterministicVideoType(
+                      selectedVideoForDetails.videoNumber,
+                      client.videoTypes,
+                      selectedVideoForDetails.videoType || (selectedVideoForDetails.title && selectedVideoForDetails.title !== `Video ${selectedVideoForDetails.videoNumber}` ? selectedVideoForDetails.title : null),
+                      'No type selected'
+                    )}
+                  </Text>
+                </View>
               </View>
+
+              {/* Per-Video Type Override Selector if client has selected types */}
+              {client.videoTypes && client.videoTypes.length > 0 && (
+                <View style={{ marginTop: 14, marginBottom: 6 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: THEME.colors.textMuted, marginBottom: 8 }}>
+                    ASSIGN SPECIFIC TYPE:
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                    {client.videoTypes.map((t) => {
+                      const currentType = getDeterministicVideoType(
+                        selectedVideoForDetails.videoNumber,
+                        client.videoTypes,
+                        selectedVideoForDetails.videoType,
+                        ''
+                      );
+                      const isCurrent = currentType === t;
+                      return (
+                        <TouchableOpacity
+                          key={t}
+                          style={{
+                            paddingHorizontal: 12,
+                            paddingVertical: 6,
+                            borderRadius: 14,
+                            backgroundColor: isCurrent ? '#E8FBF2' : '#F5F0FB',
+                            borderWidth: 1.2,
+                            borderColor: isCurrent ? THEME.colors.mint : '#EAE4F5',
+                          }}
+                          onPress={() => {
+                            setSelectedVideoForDetails({
+                              ...selectedVideoForDetails,
+                              videoType: t,
+                            });
+                            if (onUpdateVideoType) {
+                              onUpdateVideoType(selectedVideoForDetails.id, t);
+                            }
+                          }}
+                          activeOpacity={0.75}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              fontWeight: isCurrent ? '800' : '600',
+                              color: isCurrent ? THEME.colors.textNavy : THEME.colors.textMuted,
+                            }}
+                          >
+                            {isCurrent ? '✓ ' : ''}{t}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
 
               {selectedVideoForDetails.completedAt && (
                 <View style={styles.videoCompletedDateBox}>

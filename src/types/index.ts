@@ -4,6 +4,7 @@ export interface Client {
   totalBudget: number;
   ratePerVideo: number;
   createdAt: string;
+  videoTypes?: string[];
 }
 
 export interface VideoItem {
@@ -11,6 +12,7 @@ export interface VideoItem {
   clientId: string;
   videoNumber: number;
   title?: string;
+  videoType?: string | null;
   isCompleted: boolean;
   completedAt?: string | null;
 }

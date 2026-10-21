@@ -80,6 +80,7 @@ export const VideoChecklistItem: React.FC<VideoChecklistItemProps> = ({
             Video {video.videoNumber}
           </Text>
           <Text style={styles.rateSubtitle}>
+            {video.videoType ? `${video.videoType} • ` : ''}
             {video.isCompleted ? 'Completed' : `Pending • ${formatCurrency(ratePerVideo)}`}
           </Text>
         </View>

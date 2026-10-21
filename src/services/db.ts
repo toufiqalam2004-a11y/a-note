@@ -8,6 +8,7 @@ import {
   VideoItem,
 } from '../types';
 import { calculateClientMetrics } from '../utils/calculations';
+import { getDeterministicVideoType } from '../constants/videoTypes';
 
 const ASYNC_STORAGE_KEY = '@editflow_local_backup_v1';
 let sqliteDbInstance: SQLite.SQLiteDatabase | null = null;
@@ -48,8 +49,19 @@ async function runDatabaseMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
     if (!hasCompletedAt) {
       await db.execAsync('ALTER TABLE videos ADD COLUMN completed_at TEXT;');
     }
+    const hasVideoType = videoCols.some((col) => col.name === 'video_type');
+    if (!hasVideoType) {
+      await db.execAsync('ALTER TABLE videos ADD COLUMN video_type TEXT;');
+    }
 
-    // 2. Add performance indices if not exists
+    // 2. Verify clients table columns
+    const clientCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(clients);');
+    const hasVideoTypes = clientCols.some((col) => col.name === 'video_types');
+    if (!hasVideoTypes) {
+      await db.execAsync('ALTER TABLE clients ADD COLUMN video_types TEXT;');
+    }
+
+    // 3. Add performance indices if not exists
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_videos_client_num ON videos(client_id, video_number);
       CREATE INDEX IF NOT EXISTS idx_hist_client_date ON completion_history(client_id, completed_date);
@@ -75,7 +87,8 @@ export async function initDatabase(): Promise<void> {
           name TEXT NOT NULL,
           total_budget REAL NOT NULL,
           rate_per_video REAL NOT NULL,
-          created_at TEXT NOT NULL
+          created_at TEXT NOT NULL,
+          video_types TEXT
         );
 
         CREATE TABLE IF NOT EXISTS videos (
@@ -83,6 +96,7 @@ export async function initDatabase(): Promise<void> {
           client_id TEXT NOT NULL,
           video_number INTEGER NOT NULL,
           title TEXT,
+          video_type TEXT,
           is_completed INTEGER NOT NULL DEFAULT 0,
           completed_at TEXT
         );
@@ -156,14 +170,16 @@ async function seedInitialData(): Promise<void> {
   const totalBudget1 = 10000;
   const ratePerVideo1 = 800;
   const createdAt1 = now.toISOString();
+  const types1 = ['Cinematic Edit', 'Short Edit'];
 
   await db.runAsync(
-    'INSERT OR IGNORE INTO clients (id, name, total_budget, rate_per_video, created_at) VALUES (?, ?, ?, ?, ?);',
+    'INSERT OR IGNORE INTO clients (id, name, total_budget, rate_per_video, created_at, video_types) VALUES (?, ?, ?, ?, ?, ?);',
     client1Id,
     name1,
     totalBudget1,
     ratePerVideo1,
-    createdAt1
+    createdAt1,
+    JSON.stringify(types1)
   );
 
   const totalVideos1 = Math.floor(totalBudget1 / ratePerVideo1); // 12
@@ -173,14 +189,15 @@ async function seedInitialData(): Promise<void> {
     const completedAt = isCompleted
       ? new Date(now.getTime() - (4 - i) * 86400000).toISOString()
       : null;
-    const title = sampleTitles[i - 1] || `Video ${i}`;
+    const vType = getDeterministicVideoType(i, types1);
 
     await db.runAsync(
-      'INSERT OR IGNORE INTO videos (id, client_id, video_number, title, is_completed, completed_at) VALUES (?, ?, ?, ?, ?, ?);',
+      'INSERT OR IGNORE INTO videos (id, client_id, video_number, title, video_type, is_completed, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?);',
       videoId,
       client1Id,
       i,
-      title,
+      `Video ${i}`,
+      vType,
       isCompleted,
       completedAt
     );
@@ -207,14 +224,16 @@ async function seedInitialData(): Promise<void> {
   const totalBudget2 = 8000;
   const ratePerVideo2 = 1000;
   const createdAt2 = now.toISOString();
+  const types2 = ['Reel / Reels Edit', 'YouTube Video'];
 
   await db.runAsync(
-    'INSERT OR IGNORE INTO clients (id, name, total_budget, rate_per_video, created_at) VALUES (?, ?, ?, ?, ?);',
+    'INSERT OR IGNORE INTO clients (id, name, total_budget, rate_per_video, created_at, video_types) VALUES (?, ?, ?, ?, ?, ?);',
     client2Id,
     name2,
     totalBudget2,
     ratePerVideo2,
-    createdAt2
+    createdAt2,
+    JSON.stringify(types2)
   );
 
   const totalVideos2 = Math.floor(totalBudget2 / ratePerVideo2); // 8
@@ -224,14 +243,15 @@ async function seedInitialData(): Promise<void> {
     const completedAt = isCompleted
       ? new Date(now.getTime() - (5 - i) * 86400000).toISOString()
       : null;
-    const title = sampleTitles[i - 1] || `Video ${i}`;
+    const vType = getDeterministicVideoType(i, types2);
 
     await db.runAsync(
-      'INSERT OR IGNORE INTO videos (id, client_id, video_number, title, is_completed, completed_at) VALUES (?, ?, ?, ?, ?, ?);',
+      'INSERT OR IGNORE INTO videos (id, client_id, video_number, title, video_type, is_completed, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?);',
       videoId,
       client2Id,
       i,
-      title,
+      `Video ${i}`,
+      vType,
       isCompleted,
       completedAt
     );
@@ -307,16 +327,28 @@ export async function getClientsWithVideos(): Promise<ClientWithVideos[]> {
         total_budget: number;
         rate_per_video: number;
         created_at: string;
+        video_types?: string | null;
       }>('SELECT * FROM clients ORDER BY created_at DESC;');
 
       const result: ClientWithVideos[] = [];
 
       for (const c of clientRows) {
+        let videoTypes: string[] = [];
+        if (c.video_types) {
+          try {
+            const parsed = JSON.parse(c.video_types);
+            if (Array.isArray(parsed)) {
+              videoTypes = parsed;
+            }
+          } catch {}
+        }
+
         const videoRows = await db.getAllAsync<{
           id: string;
           client_id: string;
           video_number: number;
           title: string | null;
+          video_type: string | null;
           is_completed: number;
           completed_at: string | null;
         }>(
@@ -324,14 +356,25 @@ export async function getClientsWithVideos(): Promise<ClientWithVideos[]> {
           c.id
         );
 
-        const videos: VideoItem[] = videoRows.map((v) => ({
-          id: v.id,
-          clientId: v.client_id,
-          videoNumber: v.video_number,
-          title: v.title ?? `Video ${v.video_number}`,
-          isCompleted: v.is_completed === 1,
-          completedAt: v.completed_at,
-        }));
+        const videos: VideoItem[] = videoRows.map((v) => {
+          const assignedType = v.video_type || (v.title && v.title !== `Video ${v.video_number}` ? v.title : null);
+          const computedType = getDeterministicVideoType(
+            v.video_number,
+            videoTypes,
+            assignedType,
+            videoTypes.length > 0 ? '' : 'No type selected'
+          );
+
+          return {
+            id: v.id,
+            clientId: v.client_id,
+            videoNumber: v.video_number,
+            title: v.title ?? `Video ${v.video_number}`,
+            videoType: computedType,
+            isCompleted: v.is_completed === 1,
+            completedAt: v.completed_at,
+          };
+        });
 
         const calculations = calculateClientMetrics(
           c.total_budget,
@@ -345,6 +388,7 @@ export async function getClientsWithVideos(): Promise<ClientWithVideos[]> {
           totalBudget: c.total_budget,
           ratePerVideo: c.rate_per_video,
           createdAt: c.created_at,
+          videoTypes,
           videos,
           calculations,
         });
@@ -398,20 +442,29 @@ export async function getClientsWithVideos(): Promise<ClientWithVideos[]> {
 export async function addClient(
   name: string,
   totalBudget: number,
-  ratePerVideo: number
+  ratePerVideo: number,
+  videoTypes?: string[]
 ): Promise<ClientWithVideos> {
   const db = await getDbInstance();
   const clientId = 'c_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
   const createdAt = new Date().toISOString();
   const totalVideos = Math.floor(totalBudget / (ratePerVideo > 0 ? ratePerVideo : 1));
+  const cleanVideoTypes = (videoTypes || []).filter((t) => t && t.trim().length > 0);
 
   const generatedVideos: VideoItem[] = [];
   for (let i = 1; i <= totalVideos; i++) {
+    const videoType = getDeterministicVideoType(
+      i,
+      cleanVideoTypes,
+      null,
+      cleanVideoTypes.length > 0 ? '' : 'No type selected'
+    );
     generatedVideos.push({
       id: `v_${clientId}_${i}`,
       clientId,
       videoNumber: i,
       title: `Video ${i}`,
+      videoType,
       isCompleted: false,
       completedAt: null,
     });
@@ -420,21 +473,23 @@ export async function addClient(
   if (db && isSQLiteAvailable) {
     try {
       await db.runAsync(
-        'INSERT INTO clients (id, name, total_budget, rate_per_video, created_at) VALUES (?, ?, ?, ?, ?);',
+        'INSERT INTO clients (id, name, total_budget, rate_per_video, created_at, video_types) VALUES (?, ?, ?, ?, ?, ?);',
         clientId,
         name.trim(),
         totalBudget,
         ratePerVideo,
-        createdAt
+        createdAt,
+        JSON.stringify(cleanVideoTypes)
       );
 
       for (const v of generatedVideos) {
         await db.runAsync(
-          'INSERT INTO videos (id, client_id, video_number, title, is_completed, completed_at) VALUES (?, ?, ?, ?, ?, ?);',
+          'INSERT INTO videos (id, client_id, video_number, title, video_type, is_completed, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?);',
           v.id,
           v.clientId,
           v.videoNumber,
           v.title || `Video ${v.videoNumber}`,
+          v.videoType || null,
           0,
           null
         );
@@ -459,6 +514,7 @@ export async function addClient(
       totalBudget,
       ratePerVideo,
       createdAt,
+      videoTypes: cleanVideoTypes,
       videos: generatedVideos,
       calculations: calculateClientMetrics(totalBudget, ratePerVideo, generatedVideos),
     };
@@ -473,9 +529,101 @@ export async function addClient(
       totalBudget,
       ratePerVideo,
       createdAt,
+      videoTypes: cleanVideoTypes,
       videos: generatedVideos,
       calculations: calculateClientMetrics(totalBudget, ratePerVideo, generatedVideos),
     };
+  }
+}
+
+/**
+ * Updates an existing client's details and/or videoTypes
+ */
+export async function updateClient(
+  clientId: string,
+  updates: {
+    name?: string;
+    totalBudget?: number;
+    ratePerVideo?: number;
+    videoTypes?: string[];
+  }
+): Promise<ClientWithVideos | null> {
+  const db = await getDbInstance();
+  if (db && isSQLiteAvailable) {
+    try {
+      const client = await db.getFirstAsync<{
+        id: string;
+        name: string;
+        total_budget: number;
+        rate_per_video: number;
+        created_at: string;
+        video_types: string | null;
+      }>('SELECT * FROM clients WHERE id = ?;', clientId);
+
+      if (!client) return null;
+
+      const newName = updates.name !== undefined ? updates.name.trim() : client.name;
+      const newBudget = updates.totalBudget !== undefined ? updates.totalBudget : client.total_budget;
+      const newRate = updates.ratePerVideo !== undefined ? updates.ratePerVideo : client.rate_per_video;
+      let newTypes: string[] = [];
+      if (updates.videoTypes !== undefined) {
+        newTypes = updates.videoTypes;
+      } else if (client.video_types) {
+        try {
+          const parsed = JSON.parse(client.video_types);
+          if (Array.isArray(parsed)) newTypes = parsed;
+        } catch {}
+      }
+
+      await db.runAsync(
+        'UPDATE clients SET name = ?, total_budget = ?, rate_per_video = ?, video_types = ? WHERE id = ?;',
+        newName,
+        newBudget,
+        newRate,
+        JSON.stringify(newTypes),
+        clientId
+      );
+
+      // If videoTypes updated, update video rows for this client
+      if (updates.videoTypes !== undefined) {
+        const videos = await db.getAllAsync<{ id: string; video_number: number }>(
+          'SELECT id, video_number FROM videos WHERE client_id = ? ORDER BY video_number ASC;',
+          clientId
+        );
+        for (const v of videos) {
+          const newType = getDeterministicVideoType(
+            v.video_number,
+            newTypes,
+            null,
+            newTypes.length > 0 ? '' : 'No type selected'
+          );
+          await db.runAsync('UPDATE videos SET video_type = ? WHERE id = ?;', newType, v.id);
+        }
+      }
+    } catch (e) {
+      console.warn('[A Note DB] Failed to update client in SQLite:', e);
+    }
+  }
+
+  // Refresh and return updated client
+  const all = await getClientsWithVideos();
+  return all.find((c) => c.id === clientId) || null;
+}
+
+/**
+ * Updates a specific video's videoType
+ */
+export async function updateVideoType(
+  videoId: string,
+  videoType: string
+): Promise<void> {
+  const db = await getDbInstance();
+  if (db && isSQLiteAvailable) {
+    try {
+      await db.runAsync('UPDATE videos SET video_type = ? WHERE id = ?;', videoType.trim(), videoId);
+    } catch (e) {
+      console.warn('[A Note DB] Failed to update video type in SQLite:', e);
+    }
   }
 }
 

@@ -24,6 +24,8 @@ import {
   initDatabase,
   getClientsWithVideos,
   addClient,
+  updateClient,
+  updateVideoType,
   toggleVideoStatus,
   deleteClient,
 } from './src/services/db';
@@ -53,6 +55,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('home');
   const [selectedClient, setSelectedClient] = useState<ClientWithVideos | null>(null);
   const [isAddClientVisible, setIsAddClientVisible] = useState(false);
+  const [clientToEdit, setClientToEdit] = useState<ClientWithVideos | null>(null);
   const [isVoiceAssistantVisible, setIsVoiceAssistantVisible] = useState(false);
   const [isGlobalExportVisible, setIsGlobalExportVisible] = useState(false);
   const [clientForExport, setClientForExport] = useState<ClientWithVideos | null>(null);
@@ -112,14 +115,72 @@ export default function App() {
   };
 
   // Add Client
-  const handleAddClient = async (name: string, budget: number, rate: number) => {
+  const handleAddClient = async (
+    name: string,
+    budget: number,
+    rate: number,
+    videoTypes?: string[]
+  ) => {
     try {
-      const newClient = await addClient(name, budget, rate);
+      const newClient = await addClient(name, budget, rate, videoTypes);
       setClients((prev) => [newClient, ...prev]);
       showNotification(`Added client ${newClient.name} (${newClient.calculations.totalVideos} videos)`);
     } catch (e) {
       console.warn('Failed to add client:', e);
       showNotification('Failed to add client', true);
+    }
+  };
+
+  // Edit / Update Client
+  const handleUpdateClient = async (
+    clientId: string,
+    name: string,
+    budget: number,
+    rate: number,
+    videoTypes?: string[]
+  ) => {
+    try {
+      const updated = await updateClient(clientId, {
+        name,
+        totalBudget: budget,
+        ratePerVideo: rate,
+        videoTypes,
+      });
+      if (updated) {
+        setClients((prev) => prev.map((c) => (c.id === clientId ? updated : c)));
+        if (selectedClient && selectedClient.id === clientId) {
+          setSelectedClient(updated);
+        }
+        showNotification(`Updated client ${updated.name}`);
+      }
+    } catch (e) {
+      console.warn('Failed to update client:', e);
+      showNotification('Failed to update client', true);
+    }
+  };
+
+  // Per-video Type Assignment Override
+  const handleUpdateVideoType = async (videoId: string, videoType: string) => {
+    try {
+      await updateVideoType(videoId, videoType);
+      setClients((prev) =>
+        prev.map((c) => ({
+          ...c,
+          videos: c.videos.map((v) => (v.id === videoId ? { ...v, videoType } : v)),
+        }))
+      );
+      if (selectedClient) {
+        setSelectedClient((prev) =>
+          prev
+            ? {
+                ...prev,
+                videos: prev.videos.map((v) => (v.id === videoId ? { ...v, videoType } : v)),
+              }
+            : null
+        );
+      }
+    } catch (e) {
+      console.warn('Failed to update video type:', e);
     }
   };
 
@@ -440,9 +501,10 @@ export default function App() {
             onOpenVoice={() => setIsVoiceAssistantVisible(true)}
             onDeleteClient={handleDeleteClient}
             onEditClient={(c) => {
-              setClientForExport(c);
-              setIsGlobalExportVisible(true);
+              setClientToEdit(c);
+              setIsAddClientVisible(true);
             }}
+            onUpdateVideoType={handleUpdateVideoType}
           />
         ) : (
           /* Main Views */
@@ -742,11 +804,16 @@ export default function App() {
           onNotify={showNotification}
         />
 
-        {/* Add Client Modal */}
+        {/* Add / Edit Client Modal */}
         <AddClientModal
           visible={isAddClientVisible}
-          onClose={() => setIsAddClientVisible(false)}
+          onClose={() => {
+            setIsAddClientVisible(false);
+            setClientToEdit(null);
+          }}
           onAddClient={handleAddClient}
+          onUpdateClient={handleUpdateClient}
+          initialClient={clientToEdit}
         />
 
         {/* Global Export Modal for Reports tab */}

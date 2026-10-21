@@ -66,15 +66,27 @@ export async function getBackupData(): Promise<BackupPayload> {
     total_budget: number;
     rate_per_video: number;
     created_at: string;
+    video_types?: string | null;
   }>('SELECT * FROM clients ORDER BY created_at ASC;');
 
-  const clients: Client[] = rawClients.map((r) => ({
-    id: r.id,
-    name: r.name,
-    totalBudget: Number(r.total_budget),
-    ratePerVideo: Number(r.rate_per_video),
-    createdAt: r.created_at,
-  }));
+  const clients: Client[] = rawClients.map((r) => {
+    let videoTypes: string[] | undefined = undefined;
+    if (r.video_types) {
+      try {
+        const parsed = JSON.parse(r.video_types);
+        if (Array.isArray(parsed)) videoTypes = parsed;
+      } catch {}
+    }
+
+    return {
+      id: r.id,
+      name: r.name,
+      totalBudget: Number(r.total_budget),
+      ratePerVideo: Number(r.rate_per_video),
+      createdAt: r.created_at,
+      videoTypes,
+    };
+  });
 
   // 2. Fetch Videos
   const rawVideos = await db.getAllAsync<{
@@ -82,6 +94,7 @@ export async function getBackupData(): Promise<BackupPayload> {
     client_id: string;
     video_number: number;
     title: string | null;
+    video_type?: string | null;
     is_completed: number;
     completed_at: string | null;
   }>('SELECT * FROM videos ORDER BY client_id, video_number ASC;');
@@ -91,6 +104,7 @@ export async function getBackupData(): Promise<BackupPayload> {
     clientId: r.client_id,
     videoNumber: Number(r.video_number),
     title: r.title || undefined,
+    videoType: r.video_type || undefined,
     isCompleted: Number(r.is_completed) === 1,
     completedAt: r.completed_at,
   }));
@@ -292,34 +306,42 @@ export async function restoreBackupData(
 
     // Insert or update clients
     for (const client of valid.clients) {
+      const typesJson = client.videoTypes && Array.isArray(client.videoTypes)
+        ? JSON.stringify(client.videoTypes)
+        : null;
+
       await db.runAsync(
-        `INSERT INTO clients (id, name, total_budget, rate_per_video, created_at)
-         VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO clients (id, name, total_budget, rate_per_video, created_at, video_types)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            name = excluded.name,
            total_budget = excluded.total_budget,
-           rate_per_video = excluded.rate_per_video;`,
+           rate_per_video = excluded.rate_per_video,
+           video_types = excluded.video_types;`,
         client.id,
         client.name,
         client.totalBudget,
         client.ratePerVideo,
-        client.createdAt || new Date().toISOString()
+        client.createdAt || new Date().toISOString(),
+        typesJson
       );
     }
 
     // Insert or update videos
     for (const video of valid.videos) {
       await db.runAsync(
-        `INSERT INTO videos (id, client_id, video_number, title, is_completed, completed_at)
-         VALUES (?, ?, ?, ?, ?, ?)
+        `INSERT INTO videos (id, client_id, video_number, title, video_type, is_completed, completed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            title = excluded.title,
+           video_type = excluded.video_type,
            is_completed = excluded.is_completed,
            completed_at = excluded.completed_at;`,
         video.id,
         video.clientId,
         video.videoNumber,
         video.title || null,
+        video.videoType || null,
         video.isCompleted ? 1 : 0,
         video.completedAt || null
       );

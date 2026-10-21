@@ -36,7 +36,8 @@ export const SHERPA_ZIPFORMER_EN_20M: ModelConfig = {
 const ASYNC_STORAGE_MODEL_INSTALLED_KEY = '@anote_sherpa_model_installed_v1';
 
 /**
- * Returns the app-private directory where the Sherpa-ONNX model files are stored.
+ * Returns the app-private URI (with file:// scheme) where the model files are stored.
+ * Used with Expo FileSystem methods.
  */
 export function getSherpaModelDirectory(): string {
   const docDir = FileSystem.documentDirectory || '';
@@ -44,37 +45,73 @@ export function getSherpaModelDirectory(): string {
 }
 
 /**
- * Checks whether all required model files are present and have non-zero size on disk.
+ * Returns the clean absolute filesystem path WITHOUT the 'file://' URI scheme,
+ * and without a trailing slash. Required by native C++/Java/Kotlin File APIs.
+ */
+export function getSherpaModelNativePath(): string {
+  const dir = getSherpaModelDirectory();
+  return dir.replace(/^file:\/\//, '').replace(/\/+$/, '');
+}
+
+export interface DetailedFileCheck {
+  name: string;
+  expectedMinBytes: number;
+  exists: boolean;
+  actualBytes: number;
+  uriPath: string;
+  nativePath: string;
+}
+
+/**
+ * Checks whether all required model files are present and have valid size on disk.
  */
 export async function checkSherpaModelInstalled(): Promise<{
   isInstalled: boolean;
   modelDir: string;
+  nativeDir: string;
   missingFiles: string[];
   totalBytesOnDisk: number;
+  fileDetails: DetailedFileCheck[];
 }> {
   const modelDir = getSherpaModelDirectory();
+  const nativeDir = getSherpaModelNativePath();
   const dirInfo = await FileSystem.getInfoAsync(modelDir);
 
-  if (!dirInfo.exists) {
-    await AsyncStorage.removeItem(ASYNC_STORAGE_MODEL_INSTALLED_KEY);
-    return { isInstalled: false, modelDir, missingFiles: SHERPA_ZIPFORMER_EN_20M.files.map((f) => f.name), totalBytesOnDisk: 0 };
-  }
-
   const missingFiles: string[] = [];
+  const fileDetails: DetailedFileCheck[] = [];
   let totalBytesOnDisk = 0;
 
   for (const file of SHERPA_ZIPFORMER_EN_20M.files) {
     const filePath = `${modelDir}${file.name}`;
+    const nativeFilePath = `${nativeDir}/${file.name}`;
+    let exists = false;
+    let actualBytes = 0;
+
     try {
       const fileInfo = await FileSystem.getInfoAsync(filePath);
-      if (!fileInfo.exists || (fileInfo.size && fileInfo.size < file.expectedMinBytes)) {
-        missingFiles.push(file.name);
+      if (fileInfo.exists) {
+        exists = true;
+        actualBytes = fileInfo.size || 0;
+        if (actualBytes >= file.expectedMinBytes) {
+          totalBytesOnDisk += actualBytes;
+        } else {
+          missingFiles.push(file.name);
+        }
       } else {
-        totalBytesOnDisk += fileInfo.size || 0;
+        missingFiles.push(file.name);
       }
     } catch {
       missingFiles.push(file.name);
     }
+
+    fileDetails.push({
+      name: file.name,
+      expectedMinBytes: file.expectedMinBytes,
+      exists,
+      actualBytes,
+      uriPath: filePath,
+      nativePath: nativeFilePath,
+    });
   }
 
   const isInstalled = missingFiles.length === 0;
@@ -88,8 +125,10 @@ export async function checkSherpaModelInstalled(): Promise<{
   return {
     isInstalled,
     modelDir,
+    nativeDir,
     missingFiles,
     totalBytesOnDisk,
+    fileDetails,
   };
 }
 
