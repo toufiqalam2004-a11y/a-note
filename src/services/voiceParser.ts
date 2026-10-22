@@ -368,9 +368,9 @@ export function parseVoiceCommand(
     let potentialVideoStr = '';
 
     // Pattern 1: "[Client][,: ] (mark)? video [number] (is)? (done|completed)"
-    // Example: "Rahul, video five is done", "Rahul video 5 completed"
+    // Example: "Rahul, video five is done", "Rahul video 5 completed", "mark Rahul video 5 done"
     const clientFirstMatch = lower.match(
-      /^([a-zA-Z0-9\s]+?)[,:]?\s+(?:mark\s+)?video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete|checked)/i
+      /^(?:please\s+)?(?:mark\s+)?([a-zA-Z0-9\s]+?)[,:]?\s+(?:mark\s+)?video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete|checked)/i
     );
 
     // Pattern 2: "(mark)? video [number] (is)? (done|completed) for/of [Client]"
@@ -519,10 +519,40 @@ export function parseVoiceCommand(
     }
   }
 
+  // 5. Client Name Query / Identification (e.g. "Hardik", "client Hardik", "show Hardik", "Hardik videos")
+  // Allows user to speak a client name; recognizes and displays the client without completing any video or mutating SQLite!
+  const candidateClientName = lower
+    .replace(/^(?:client|who is|details of|details for|about|show|open|view)\s+/i, '')
+    .replace(/\s+(?:videos?|details|profile|account|status|work|tasks?)$/i, '')
+    .trim();
+
+  if (candidateClientName.length > 0) {
+    const clientMatch = findMatchingClient(candidateClientName, clients);
+    if (clientMatch.client) {
+      const matched = clientMatch.client;
+      return {
+        success: true,
+        actionType: 'QUERY',
+        matchedClient: matched,
+        message: `Client "${matched.name}" recognized (${matched.calculations.completedVideos}/${matched.calculations.totalVideos} videos completed). Say e.g. "Video 5 is done" to mark a video.`,
+      };
+    }
+
+    if (clientMatch.isAmbiguous) {
+      return {
+        success: false,
+        isAmbiguous: true,
+        ambiguityPrompt: `Multiple clients matched "${candidateClientName}": ${clientMatch.candidates.map((c) => c.name).join(', ')}.`,
+        message: `Ambiguous client name "${candidateClientName}". Candidates: ${clientMatch.candidates.map((c) => c.name).join(', ')}`,
+        actionType: 'QUERY',
+      };
+    }
+  }
+
   // Fallback / Unrecognized command
   return {
     success: false,
-    message: `Command not recognized: "${rawTranscript}". Try: "Rahul, video 5 is done" or "Video 5 is done".`,
+    message: `Command not recognized: "${rawTranscript.trim()}". Try: "Rahul, video 5 is done" or say a client name.`,
     actionType: 'UNKNOWN',
   };
 }

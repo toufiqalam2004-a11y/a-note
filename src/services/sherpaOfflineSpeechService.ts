@@ -219,14 +219,20 @@ export async function getOrInitializeSherpaEngine(): Promise<{
       modelPath: { type: 'file', path: cleanNativeDir },
       modelType: 'transducer',
       enableEndpoint: true,
+      enableInputNormalization: false, // CRITICAL: Stop 80x noise magnification on silence
       decodingMethod: 'greedy_search',
       maxActivePaths: 4,
       numThreads: 2,
+      endpointConfig: {
+        rule1: { mustContainNonSilence: true, minTrailingSilence: 2.4, minUtteranceLength: 0.0 },
+        rule2: { mustContainNonSilence: true, minTrailingSilence: 1.2, minUtteranceLength: 0.0 },
+        rule3: { mustContainNonSilence: false, minTrailingSilence: 0.0, minUtteranceLength: 20.0 },
+      },
     });
 
     activeEngine = engine;
     activeEngineModelDir = cleanNativeDir;
-    console.log('[SherpaSpeech] Offline speech engine initialized successfully!');
+    console.log('[SherpaSpeech] Offline speech engine initialized successfully with calibrated endpointing.');
     return { engine: activeEngine };
   } catch (err: any) {
     console.warn('[SherpaSpeech] Engine initialization failed:', err);
@@ -241,15 +247,46 @@ export async function getOrInitializeSherpaEngine(): Promise<{
   }
 }
 
+/**
+ * Calculates the Root-Mean-Square (RMS) audio energy of a PCM chunk.
+ * Normal Float32Array values are in range [-1.0, 1.0].
+ * Silence is typically < 0.010; normal voice speech is typically 0.02 to 0.3+.
+ */
+export function calculatePcmRms(samples: Float32Array): number {
+  if (!samples || samples.length === 0) return 0;
+  let sum = 0;
+  for (let i = 0; i < samples.length; i++) {
+    sum += samples[i] * samples[i];
+  }
+  return Math.sqrt(sum / samples.length);
+}
+
+// Calibrated RMS threshold for human speech activity vs room silence
+export const SPEECH_RMS_THRESHOLD = 0.015;
+// Max time to wait for initial speech before timing out
+export const INITIAL_SILENCE_TIMEOUT_MS = 5500;
+// Silence after speech required to finalize utterance
+export const TRAILING_SILENCE_TIMEOUT_MS = 1400;
+
 export interface OfflineListeningCallbacks {
   onListeningStart?: () => void;
+  onAudioLevel?: (rms: number, isSpeech: boolean) => void;
+  onSpeechStart?: () => void;
   onTranscript: (text: string, isFinal: boolean) => void;
+  onSilenceTimeout?: () => void;
   onError: (errorMessage: string) => void;
   onListeningEnd?: () => void;
 }
 
+let sessionCounter = 0;
+
 /**
  * Starts live on-device offline recognition via microphone stream.
+ * Employs Google-style voice interaction:
+ * - Silence keeps UI calm and motionless
+ * - Speech triggers audio-reactive waveform
+ * - Chunks are queued sequentially to prevent bridge collisions
+ * - Trailing silence triggers utterance finalization
  */
 export async function startSherpaOfflineListening(
   callbacks: OfflineListeningCallbacks
@@ -275,7 +312,7 @@ export async function startSherpaOfflineListening(
     return { success: false, error: errMsg };
   }
 
-  // 2. Resolve or initialize engine
+  // 3. Resolve or initialize engine
   const { engine, error: engineError } = await getOrInitializeSherpaEngine();
   if (!engine) {
     const errMsg = engineError || 'Failed to start offline voice engine.';
@@ -290,14 +327,16 @@ export async function startSherpaOfflineListening(
     return { success: false, error: errMsg };
   }
 
+  const currentSessionId = ++sessionCounter;
+
   try {
     isListening = true;
 
-    // 3. Create fresh stream from engine
+    // 4. Create fresh stream from engine
     const stream = await engine.createStream();
     activeStream = stream;
 
-    // 4. Create native PCM live stream (16kHz mono)
+    // 5. Create native PCM live stream (16kHz mono)
     const pcm = native.audio.createPcmLiveStream({
       sampleRate: 16000,
       channelCount: 1,
@@ -306,11 +345,48 @@ export async function startSherpaOfflineListening(
 
     let hasEnded = false;
     let accumulatedText = '';
+    let hasDetectedSpeech = false;
+    let lastSpeechTimestamp = 0;
+    const sessionStartTime = Date.now();
+
+    // FIFO queue for incoming audio chunks to serialize native calls
+    interface AudioChunkItem {
+      samples: Float32Array;
+      sampleRate: number;
+    }
+    const chunkQueue: AudioChunkItem[] = [];
+    let isProcessingQueue = false;
+
+    // Helper: Finalizes the decoder stream and flushes any trailing tokens
+    const finalizeStream = async (): Promise<string> => {
+      if (!activeStream || hasEnded) return accumulatedText;
+      try {
+        await stream.inputFinished();
+        let loopCount = 0;
+        while ((await stream.isReady()) && loopCount < 15) {
+          await stream.decode();
+          loopCount++;
+        }
+        const finalResult = await stream.getResult();
+        const finalText = (finalResult?.text || '').trim();
+        if (finalText) {
+          accumulatedText = finalText;
+        }
+      } catch (finErr) {
+        console.warn('[SherpaSpeech] Error during stream finalization:', finErr);
+      }
+      return accumulatedText;
+    };
 
     const cleanupActiveSession = async () => {
-      if (hasEnded) return;
+      if (hasEnded || currentSessionId !== sessionCounter) return;
       hasEnded = true;
       isListening = false;
+
+      if (silenceCheckInterval) {
+        clearInterval(silenceCheckInterval);
+        silenceCheckInterval = null;
+      }
 
       if (unsubscribePcmData) {
         try { unsubscribePcmData(); } catch {}
@@ -333,37 +409,92 @@ export async function startSherpaOfflineListening(
       callbacks.onListeningEnd?.();
     };
 
-    // Attach data listener: incoming PCM samples fed directly into ONNX stream
-    unsubscribePcmData = pcm.onData(async (samples: Float32Array, sr: number) => {
-      if (hasEnded) return;
+    // Sequential queue processor
+    const drainQueue = async () => {
+      if (isProcessingQueue || hasEnded) return;
+      isProcessingQueue = true;
       try {
-        const { result, isEndpoint } = await stream.processAudioChunk(samples, sr);
-        const currentText = (result?.text || '').trim();
+        while (chunkQueue.length > 0 && !hasEnded && activeStream) {
+          const item = chunkQueue.shift();
+          if (!item) break;
+          const { result, isEndpoint } = await stream.processAudioChunk(item.samples, item.sampleRate);
+          const currentText = (result?.text || '').trim();
 
-        if (currentText) {
-          accumulatedText = currentText;
-          callbacks.onTranscript(currentText, isEndpoint);
-        }
+          if (currentText) {
+            accumulatedText = currentText;
+            callbacks.onTranscript(currentText, false);
+          }
 
-        if (isEndpoint) {
-          // Detected end of utterance naturally
-          await cleanupActiveSession();
-          if (accumulatedText) {
-            callbacks.onTranscript(accumulatedText, true);
+          if (isEndpoint) {
+            // Sherpa endpoint detected
+            const finalText = await finalizeStream();
+            await cleanupActiveSession();
+            callbacks.onTranscript(finalText || accumulatedText, true);
+            break;
           }
         }
-      } catch (chunkErr: any) {
-        console.warn('[SherpaSpeech] Chunk processing error:', chunkErr);
+      } catch (err: any) {
+        console.warn('[SherpaSpeech] Chunk queue drain error:', err);
+      } finally {
+        isProcessingQueue = false;
       }
+    };
+
+    // Periodic silence / endpoint detector (runs every 150ms)
+    let silenceCheckInterval: any = setInterval(async () => {
+      if (hasEnded || currentSessionId !== sessionCounter) {
+        if (silenceCheckInterval) clearInterval(silenceCheckInterval);
+        return;
+      }
+
+      const now = Date.now();
+
+      // Case 1: Initial silence timeout (user didn't say anything for INITIAL_SILENCE_TIMEOUT_MS)
+      if (!hasDetectedSpeech && now - sessionStartTime > INITIAL_SILENCE_TIMEOUT_MS) {
+        await cleanupActiveSession();
+        callbacks.onSilenceTimeout?.();
+        return;
+      }
+
+      // Case 2: Trailing silence after speech detected (user paused/finished speaking)
+      if (hasDetectedSpeech && now - lastSpeechTimestamp > TRAILING_SILENCE_TIMEOUT_MS) {
+        const finalText = await finalizeStream();
+        await cleanupActiveSession();
+        callbacks.onTranscript(finalText || accumulatedText, true);
+        return;
+      }
+    }, 150);
+
+    // Attach data listener: incoming PCM samples fed through RMS meter and serialized queue
+    unsubscribePcmData = pcm.onData((samples: Float32Array, sr: number) => {
+      if (hasEnded || currentSessionId !== sessionCounter) return;
+
+      const rms = calculatePcmRms(samples);
+      const isSpeech = rms >= SPEECH_RMS_THRESHOLD;
+
+      // Provide live audio level for Google-style waveform visualization
+      callbacks.onAudioLevel?.(rms, isSpeech);
+
+      if (isSpeech) {
+        if (!hasDetectedSpeech) {
+          hasDetectedSpeech = true;
+          callbacks.onSpeechStart?.();
+        }
+        lastSpeechTimestamp = Date.now();
+      }
+
+      // Push to FIFO queue and drain sequentially
+      chunkQueue.push({ samples, sampleRate: sr });
+      drainQueue();
     });
 
     unsubscribePcmError = pcm.onError((errMsg: string) => {
-      if (hasEnded) return;
+      if (hasEnded || currentSessionId !== sessionCounter) return;
       callbacks.onError(errMsg || 'Microphone stream error.');
       cleanupActiveSession();
     });
 
-    // 5. Start microphone capture
+    // 6. Start microphone capture
     await pcm.start();
     callbacks.onListeningStart?.();
 

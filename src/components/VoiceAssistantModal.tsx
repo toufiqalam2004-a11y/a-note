@@ -80,71 +80,57 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   // Prevent duplicate transcript triggers
   const lastProcessedRef = useRef<{ text: string; time: number }>({ text: '', time: 0 });
 
-  // Pulsing animation for mic button
+  // Audio-reactive animated values for Google-style speech interaction
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const wave1 = useRef(new Animated.Value(8)).current;
-  const wave2 = useRef(new Animated.Value(14)).current;
-  const wave3 = useRef(new Animated.Value(20)).current;
-  const wave4 = useRef(new Animated.Value(12)).current;
+  const wave1 = useRef(new Animated.Value(5)).current;
+  const wave2 = useRef(new Animated.Value(5)).current;
+  const wave3 = useRef(new Animated.Value(5)).current;
+  const wave4 = useRef(new Animated.Value(5)).current;
 
-  // Pulse ring animation when listening
-  useEffect(() => {
-    let animation: Animated.CompositeAnimation | null = null;
-    if (voiceState === 'listening') {
-      animation = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.12,
-            duration: 600,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 600,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      animation.start();
-    } else {
-      pulseAnim.setValue(1);
-    }
-    return () => {
-      if (animation) animation.stop();
-    };
-  }, [voiceState, pulseAnim]);
+  // Calm, resting state when user is silent or not speaking
+  const resetWaveform = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(wave1, { toValue: 5, duration: 150, useNativeDriver: false }),
+      Animated.timing(wave2, { toValue: 5, duration: 150, useNativeDriver: false }),
+      Animated.timing(wave3, { toValue: 5, duration: 150, useNativeDriver: false }),
+      Animated.timing(wave4, { toValue: 5, duration: 150, useNativeDriver: false }),
+      Animated.timing(pulseAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+    ]).start();
+  }, [wave1, wave2, wave3, wave4, pulseAnim]);
 
-  // Audio wave animation when listening
-  useEffect(() => {
-    let waveLoop: Animated.CompositeAnimation | null = null;
-    if (voiceState === 'listening') {
-      const createBarAnim = (anim: Animated.Value, maxH: number, minH: number, dur: number) =>
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(anim, { toValue: maxH, duration: dur, useNativeDriver: false }),
-            Animated.timing(anim, { toValue: minH, duration: dur, useNativeDriver: false }),
-          ])
-        );
+  // Dynamically reacts to real audio RMS energy only when speech activity occurs
+  const updateAudioWaveform = useCallback(
+    (rms: number, isSpeech: boolean) => {
+      if (!isSpeech) {
+        // Keep UI calm and motionless during silence
+        Animated.parallel([
+          Animated.timing(wave1, { toValue: 5, duration: 100, useNativeDriver: false }),
+          Animated.timing(wave2, { toValue: 5, duration: 100, useNativeDriver: false }),
+          Animated.timing(wave3, { toValue: 5, duration: 100, useNativeDriver: false }),
+          Animated.timing(wave4, { toValue: 5, duration: 100, useNativeDriver: false }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
+        ]).start();
+        return;
+      }
 
-      waveLoop = Animated.parallel([
-        createBarAnim(wave1, 26, 8, 360),
-        createBarAnim(wave2, 34, 10, 460),
-        createBarAnim(wave3, 38, 12, 320),
-        createBarAnim(wave4, 28, 8, 420),
-      ]);
-      waveLoop.start();
-    } else {
+      // Normalized speech volume in range [0, 1]
+      const energy = Math.min(1, Math.max(0, (rms - 0.015) / 0.12));
+      const h1 = Math.round(6 + energy * 26);
+      const h2 = Math.round(8 + energy * 38);
+      const h3 = Math.round(8 + energy * 34);
+      const h4 = Math.round(6 + energy * 24);
+      const scale = 1 + energy * 0.12;
+
       Animated.parallel([
-        Animated.timing(wave1, { toValue: 8, duration: 200, useNativeDriver: false }),
-        Animated.timing(wave2, { toValue: 14, duration: 200, useNativeDriver: false }),
-        Animated.timing(wave3, { toValue: 20, duration: 200, useNativeDriver: false }),
-        Animated.timing(wave4, { toValue: 12, duration: 200, useNativeDriver: false }),
+        Animated.timing(wave1, { toValue: h1, duration: 75, useNativeDriver: false }),
+        Animated.timing(wave2, { toValue: h2, duration: 75, useNativeDriver: false }),
+        Animated.timing(wave3, { toValue: h3, duration: 75, useNativeDriver: false }),
+        Animated.timing(wave4, { toValue: h4, duration: 75, useNativeDriver: false }),
+        Animated.timing(pulseAnim, { toValue: scale, duration: 75, useNativeDriver: true }),
       ]).start();
-    }
-    return () => {
-      if (waveLoop) waveLoop.stop();
-    };
-  }, [voiceState, wave1, wave2, wave3, wave4]);
+    },
+    [wave1, wave2, wave3, wave4, pulseAnim]
+  );
 
   // Check offline voice model installation status & initialize engine
   const initializeEngineFlow = useCallback(async () => {
@@ -215,13 +201,28 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     };
   }, [visible, initializeEngineFlow]);
 
+  const isListeningState =
+    voiceState === 'listening' ||
+    voiceState === 'speechDetected' ||
+    voiceState === 'partialTranscript' ||
+    voiceState === 'finalizing';
+
   const handleStopListening = useCallback(() => {
     stopSherpaOfflineListening();
-    if (voiceState === 'listening') {
-      setVoiceState('idle');
-      setStatusMessage(engineReady ? 'Tap microphone to speak' : 'Speech engine not ready');
-    }
-  }, [voiceState, engineReady]);
+    resetWaveform();
+    setVoiceState((prev) => {
+      if (
+        prev === 'listening' ||
+        prev === 'speechDetected' ||
+        prev === 'partialTranscript' ||
+        prev === 'finalizing'
+      ) {
+        return 'idle';
+      }
+      return prev;
+    });
+    setStatusMessage(engineReady ? 'Tap microphone to speak' : 'Speech engine not ready');
+  }, [engineReady, resetWaveform]);
 
   // Safe Android BackHandler
   const handleSafeBackOrClose = useCallback(() => {
@@ -260,7 +261,16 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       return;
     }
 
-    // 3. Command Unrecognized or validation error
+    // 3. Client identification query (e.g. user said "Hardik", "client Hardik", "show Hardik")
+    // Displays the recognized client, keeps data safe, zero SQLite mutation!
+    if (result.actionType === 'QUERY' && result.matchedClient) {
+      setVoiceState('success');
+      setStatusMessage(result.message);
+      setFeedbackColor(THEME.colors.purple);
+      return;
+    }
+
+    // 4. Command Unrecognized or validation error
     if (!result.success) {
       setVoiceState('error');
       setStatusMessage(result.message);
@@ -268,7 +278,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       return;
     }
 
-    // 4. Already completed video: friendly neutral/green message, NO error dialog, NO duplicate history
+    // 5. Already completed video: friendly neutral/green message, NO error dialog, NO duplicate history
     if (result.alreadyCompleted) {
       setVoiceState('success');
       setStatusMessage(result.message);
@@ -277,7 +287,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       return;
     }
 
-    // 5. Valid unambiguous action: DIRECT EXECUTION (No unnecessary confirmation popup!)
+    // 6. Valid unambiguous action: DIRECT EXECUTION (No unnecessary confirmation popup!)
     if (result.pendingAction) {
       setVoiceState('success');
       setStatusMessage(result.message);
@@ -341,6 +351,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   const handleStartListening = async () => {
     setTranscript('');
     setFeedbackColor(THEME.colors.mint);
+    resetWaveform();
 
     if (isRunningInExpoGo()) {
       setVoiceState('listening');
@@ -366,16 +377,33 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       return;
     }
 
+    setVoiceState('requestingPermission');
+    setStatusMessage('Starting microphone...');
+
     const res = await startSherpaOfflineListening({
       onListeningStart: () => {
         setVoiceState('listening');
-        setStatusMessage('Listening offline... Speak naturally.');
+        setStatusMessage('Listening... Speak naturally.');
         setFeedbackColor(THEME.colors.mint);
+        resetWaveform();
+      },
+      onAudioLevel: (rms: number, isSpeech: boolean) => {
+        updateAudioWaveform(rms, isSpeech);
+      },
+      onSpeechStart: () => {
+        setVoiceState((prev) => (prev === 'listening' ? 'speechDetected' : prev));
+        setStatusMessage('Listening... (speech detected)');
       },
       onTranscript: (text: string, isFinal: boolean) => {
         if (!text) return;
         setTranscript(text);
-        if (isFinal) {
+        if (!isFinal) {
+          setVoiceState('partialTranscript');
+        } else {
+          resetWaveform();
+          setVoiceState('finalizing');
+          setStatusMessage('Finalizing transcript...');
+
           const clean = text.trim().toLowerCase();
           const now = Date.now();
           if (clean === lastProcessedRef.current.text && now - lastProcessedRef.current.time < 2000) {
@@ -383,25 +411,43 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
           }
           lastProcessedRef.current = { text: clean, time: now };
 
-          setVoiceState('processing');
-          setStatusMessage(`Processing: "${text}"`);
-          handleProcessCommand(text);
+          setTimeout(() => {
+            setVoiceState('processingCommand');
+            setStatusMessage(`Processing: "${text}"`);
+            handleProcessCommand(text);
+          }, 80);
         }
       },
+      onSilenceTimeout: () => {
+        resetWaveform();
+        setVoiceState('noSpeech');
+        setStatusMessage('No speech detected. Tap microphone to try again.');
+        setFeedbackColor(THEME.colors.amber);
+      },
       onError: (errMsg: string) => {
+        resetWaveform();
         setVoiceState('error');
         setStatusMessage(errMsg || 'Recognition error. You can retry or type below.');
         setFeedbackColor('#FF5E7E');
       },
       onListeningEnd: () => {
-        if (voiceState === 'listening') {
-          setVoiceState('idle');
-          setStatusMessage('Listening finished. Tap mic to speak again.');
-        }
+        resetWaveform();
+        setVoiceState((prev) => {
+          if (
+            prev === 'listening' ||
+            prev === 'speechDetected' ||
+            prev === 'partialTranscript' ||
+            prev === 'finalizing'
+          ) {
+            return 'idle';
+          }
+          return prev;
+        });
       },
     });
 
     if (!res.success) {
+      resetWaveform();
       setVoiceState('error');
       setStatusMessage(res.error || 'Could not start offline microphone.');
       setFeedbackColor('#FF5E7E');
@@ -409,7 +455,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   };
 
   const handleToggleMic = () => {
-    if (voiceState === 'listening') {
+    if (isListeningState) {
       handleStopListening();
     } else {
       handleStartListening();
@@ -544,7 +590,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                   {
                     transform: [{ scale: pulseAnim }],
                     borderColor:
-                      voiceState === 'listening'
+                      isListeningState
                         ? THEME.colors.mint
                         : 'rgba(124, 92, 252, 0.2)',
                   },
@@ -553,39 +599,70 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                 <TouchableOpacity
                   style={[
                     styles.micButton,
-                    voiceState === 'listening' ? styles.micButtonListening : styles.micButtonIdle,
+                    isListeningState ? styles.micButtonListening : styles.micButtonIdle,
                   ]}
                   onPress={handleToggleMic}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel={voiceState === 'listening' ? 'Stop listening' : 'Start listening'}
+                  accessibilityLabel={isListeningState ? 'Stop listening' : 'Start listening'}
                 >
                   <Ionicons
-                    name={voiceState === 'listening' ? 'mic' : 'mic-outline'}
+                    name={isListeningState ? 'mic' : 'mic-outline'}
                     size={36}
                     color="#FFFFFF"
                   />
                 </TouchableOpacity>
               </Animated.View>
 
-              {/* Sound wave visualizer when listening */}
-              {voiceState === 'listening' && (
+              {/* Google-style speech-reactive 4-bar visualizer */}
+              {isListeningState && (
                 <View style={styles.waveContainer}>
-                  <Animated.View style={[styles.waveBar, { height: wave1 }]} />
-                  <Animated.View style={[styles.waveBar, { height: wave2 }]} />
-                  <Animated.View style={[styles.waveBar, { height: wave3 }]} />
-                  <Animated.View style={[styles.waveBar, { height: wave4 }]} />
+                  <Animated.View style={[styles.waveBar, { height: wave1, backgroundColor: '#4285F4' }]} />
+                  <Animated.View style={[styles.waveBar, { height: wave2, backgroundColor: '#EA4335' }]} />
+                  <Animated.View style={[styles.waveBar, { height: wave3, backgroundColor: '#FBBC05' }]} />
+                  <Animated.View style={[styles.waveBar, { height: wave4, backgroundColor: '#34A853' }]} />
                 </View>
               )}
             </View>
 
-            {/* Status Message & Live Transcript */}
+            {/* Status Message */}
             <View style={styles.statusCard}>
               <View style={[styles.statusDot, { backgroundColor: feedbackColor }]} />
               <Text style={[styles.statusText, { color: feedbackColor }]} numberOfLines={2}>
                 {statusMessage}
               </Text>
             </View>
+
+            {/* Explicit Retry Action when silence or no speech was detected */}
+            {voiceState === 'noSpeech' && (
+              <TouchableOpacity
+                style={styles.retryMicButton}
+                onPress={handleStartListening}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="refresh" size={14} color="#7C5CFC" style={{ marginRight: 6 }} />
+                <Text style={styles.retryMicText}>Tap to Try Again</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Live Transcript Display shown prominently right near the microphone */}
+            {transcript.length > 0 && (
+              <View style={styles.transcriptBox}>
+                <View style={styles.transcriptHeaderRow}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={13} color={THEME.colors.purple} />
+                  <Text style={styles.transcriptLabel}>
+                    {isListeningState ? 'Listening...' : 'Heard Speech:'}
+                  </Text>
+                  {isListeningState && (
+                    <View style={styles.liveIndicator}>
+                      <View style={styles.liveDot} />
+                      <Text style={styles.liveText}>LIVE</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.transcriptText}>“{transcript}”</Text>
+              </View>
+            )}
 
             {engineReady && (
               <View style={styles.offlineReadyBadge}>
@@ -670,13 +747,6 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                     ))}
                   </View>
                 )}
-              </View>
-            )}
-
-            {transcript.length > 0 && (
-              <View style={styles.transcriptBox}>
-                <Text style={styles.transcriptLabel}>Heard:</Text>
-                <Text style={styles.transcriptText}>“{transcript}”</Text>
               </View>
             )}
           </ScrollView>
@@ -839,14 +909,13 @@ const styles = StyleSheet.create({
   waveContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    height: 40,
+    gap: 8,
+    height: 48,
     marginTop: 14,
   },
   waveBar: {
-    width: 4,
-    borderRadius: 2,
-    backgroundColor: THEME.colors.mint,
+    width: 6,
+    borderRadius: 3,
   },
   statusCard: {
     flexDirection: 'row',
@@ -875,14 +944,46 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
   },
-  transcriptBox: {
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    borderRadius: 14,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    marginTop: 12,
+  retryMicButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginTop: 10,
+    borderWidth: 1.5,
+    borderColor: '#7C5CFC',
+    shadowColor: THEME.colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  retryMicText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#7C5CFC',
+  },
+  transcriptBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 92, 252, 0.25)',
+    shadowColor: THEME.colors.shadowColor,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  transcriptHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
     gap: 6,
   },
   transcriptLabel: {
@@ -891,10 +992,32 @@ const styles = StyleSheet.create({
     color: THEME.colors.textMuted,
   },
   transcriptText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     color: THEME.colors.textNavy,
-    fontStyle: 'italic',
+    lineHeight: 20,
+  },
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 201, 167, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 6,
+    gap: 4,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: THEME.colors.mint,
+  },
+  liveText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: THEME.colors.mint,
+    letterSpacing: 0.5,
   },
   bottomInputSection: {
     backgroundColor: '#FFFFFF',

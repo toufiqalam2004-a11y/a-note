@@ -68,7 +68,19 @@ export interface ExportReportOptions {
   includeCompletedOnly?: boolean;
 }
 
-export type VoiceState = 'idle' | 'listening' | 'processing' | 'confirmation' | 'success' | 'error';
+export type VoiceState =
+  | 'idle'
+  | 'requestingPermission'
+  | 'listening'
+  | 'speechDetected'
+  | 'partialTranscript'
+  | 'finalizing'
+  | 'processing'
+  | 'processingCommand'
+  | 'confirmation'
+  | 'success'
+  | 'noSpeech'
+  | 'error';
 
 export interface PendingVoiceAction {
   type: 'ADD_CLIENT' | 'COMPLETE_VIDEO' | 'NAVIGATE';
