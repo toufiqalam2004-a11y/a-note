@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
-import { requireOptionalNativeModule } from 'expo';
-import Constants, { ExecutionEnvironment, AppOwnership } from 'expo-constants';
+import { requireOptionalNativeModule, isRunningInExpoGo as isExpoGoRuntime } from 'expo';
+import Constants, { AppOwnership } from 'expo-constants';
 
 /**
  * Checks whether the app is currently running inside standard Expo Go.
  */
 export const isRunningInExpoGo: boolean =
-  Constants.executionEnvironment === ExecutionEnvironment.StoreClient ||
+  (typeof isExpoGoRuntime === 'function' && isExpoGoRuntime()) ||
   Constants.appOwnership === AppOwnership.Expo ||
   (Constants.appOwnership as any) === 'expo';
 

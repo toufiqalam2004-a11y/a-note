@@ -1,5 +1,6 @@
 import { Platform, PermissionsAndroid, NativeModules, TurboModuleRegistry } from 'react-native';
-import Constants, { ExecutionEnvironment, AppOwnership } from 'expo-constants';
+import { isRunningInExpoGo as isExpoGoRuntime } from 'expo';
+import Constants, { AppOwnership } from 'expo-constants';
 import {
   checkSherpaModelInstalled,
   getSherpaModelDirectory,
@@ -12,11 +13,42 @@ let moduleResolutionAttempted = false;
 let lastEngineInitError: string | null = null;
 
 /**
+ * Reliably checks whether the app is currently running inside standard Expo Go.
+ *
+ * Uses the official Expo SDK runtime detection:
+ * 1. `isRunningInExpoGo()` from `expo` (detects presence of native `ExpoGo` module linked exclusively in Expo Go host app).
+ * 2. `Constants.appOwnership === AppOwnership.Expo || Constants.appOwnership === 'expo'`.
+ *
+ * Note: Standalone APKs (EAS build) or development builds do NOT have the `ExpoGo` native module,
+ * so this returns false.
+ */
+export function isRunningInExpoGo(): boolean {
+  if (Platform.OS === 'web') return false;
+
+  try {
+    if (typeof isExpoGoRuntime === 'function' && isExpoGoRuntime()) {
+      return true;
+    }
+  } catch {}
+
+  if (
+    Constants.appOwnership === AppOwnership.Expo ||
+    (Constants.appOwnership as any) === 'expo'
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Checks whether the native SherpaOnnx module is bundled and available in the current binary.
- * Inspects both React Native TurboModuleRegistry and legacy NativeModules bridge.
+ * In Expo Go, custom C++ ONNX native binaries are never available, so we immediately return false
+ * without attempting any TurboModule or NativeModules lookup that could fail.
  */
 export function isSherpaNativeAvailable(): boolean {
   if (Platform.OS === 'web') return false;
+  if (isRunningInExpoGo()) return false;
 
   try {
     const turboModule = TurboModuleRegistry.get('SherpaOnnx');
@@ -32,45 +64,11 @@ export function isSherpaNativeAvailable(): boolean {
 }
 
 /**
- * Reliably checks whether the app is currently running inside standard Expo Go.
- *
- * Requirements:
- * 1. If SherpaOnnx native module is present in the binary, it CANNOT be standard Expo Go
- *    (Expo Go never includes custom native C++ ONNX modules).
- * 2. In modern Expo SDKs (SDK 50+), the official supported check is:
- *    Constants.executionEnvironment === ExecutionEnvironment.StoreClient.
- * 3. In a standalone APK or EAS preview build, Constants.executionEnvironment is 'standalone' or 'bare'.
- *    A standalone APK will never be identified as Expo Go.
- */
-export function isRunningInExpoGo(): boolean {
-  if (Platform.OS === 'web') return false;
-
-  // If the binary has SherpaOnnx linked, it is a standalone APK or custom dev build, never Expo Go.
-  if (isSherpaNativeAvailable()) {
-    return false;
-  }
-
-  // Official Expo SDK runtime execution environment check for Expo Go store client
-  if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) {
-    return true;
-  }
-
-  // Fallback for older Expo runtime states
-  if (
-    Constants.appOwnership === AppOwnership.Expo ||
-    (Constants.appOwnership as any) === 'expo'
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
  * Safely resolves the native SherpaOnnx STT and Audio modules.
+ * In Expo Go, this strictly returns null and NEVER requires or imports `react-native-sherpa-onnx`.
  */
 export function getNativeSherpaModule(): { stt: any; audio: any } | null {
-  if (Platform.OS === 'web') return null;
+  if (Platform.OS === 'web' || isRunningInExpoGo()) return null;
 
   if (cachedSttModule && cachedAudioModule) {
     return { stt: cachedSttModule, audio: cachedAudioModule };
@@ -262,7 +260,14 @@ export async function startSherpaOfflineListening(
     await stopSherpaOfflineListening();
   }
 
-  // 1. Check microphone permission
+  // 1. Guard against running inside Expo Go
+  if (isRunningInExpoGo()) {
+    const errMsg = 'Offline voice recognition requires the standalone A Note APK. In Expo Go, please use typed commands.';
+    callbacks.onError(errMsg);
+    return { success: false, error: errMsg };
+  }
+
+  // 2. Check microphone permission
   const perm = await requestMicrophonePermission();
   if (!perm.granted) {
     const errMsg = perm.message || 'Microphone permission was not granted.';
@@ -438,13 +443,26 @@ export interface SherpaDiagnostics {
 
 /**
  * Returns comprehensive runtime diagnostics for development / verification.
+ * In Expo Go, returns safe environment indicators without attempting native module calls or disk checks.
  */
 export async function getSherpaDiagnostics(): Promise<SherpaDiagnostics> {
   const isExpo = isRunningInExpoGo();
+  if (isExpo) {
+    return {
+      isExpoGo: true,
+      executionEnvironment: String(Constants.executionEnvironment || 'storeClient'),
+      isNativeModuleAvailable: false,
+      modelInstalled: false,
+      modelNativeDir: '',
+      engineInitialized: false,
+      lastError: 'Expo Go detected: Offline voice recognition requires the standalone A Note APK.',
+    };
+  }
+
   const nativeAvailable = isSherpaNativeAvailable();
   const modelCheck = await checkSherpaModelInstalled();
   return {
-    isExpoGo: isExpo,
+    isExpoGo: false,
     executionEnvironment: String(Constants.executionEnvironment || 'unknown'),
     isNativeModuleAvailable: nativeAvailable,
     modelInstalled: modelCheck.isInstalled,

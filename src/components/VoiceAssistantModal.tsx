@@ -152,18 +152,19 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     setInitError(null);
 
     try {
-      const diag = await getSherpaDiagnostics();
-      console.log('[VoiceAssistantModal] Diagnostics at launch:', JSON.stringify(diag));
-
-      // 1. Check if genuinely inside Expo Go store client
+      // 1. Check if genuinely inside Expo Go store client FIRST before any module/file checks
       if (isRunningInExpoGo()) {
         setEngineReady(false);
+        setModelInstalled(false);
         setStatusMessage(
-          'Expo Go detected: Offline voice recognition requires the standalone A Note APK. Native C++ ONNX speech binaries cannot run inside Expo Go. You can type commands below.'
+          'Expo Go detected: Offline voice recognition requires a compatible development or standalone APK. You can type commands below or tap an example chip.'
         );
         setFeedbackColor(THEME.colors.amber);
         return;
       }
+
+      const diag = await getSherpaDiagnostics();
+      console.log('[VoiceAssistantModal] Diagnostics at launch:', JSON.stringify(diag));
 
       // 2. Check model files on disk
       const res = await checkSherpaModelInstalled();
@@ -494,8 +495,8 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
               ))}
             </View>
 
-            {/* Offline Model Setup Card (shown if model is not yet downloaded) */}
-            {modelInstalled === false && (
+            {/* Offline Model Setup Card (shown if model is not yet downloaded, only in standalone/dev builds) */}
+            {!isRunningInExpoGo() && modelInstalled === false && (
               <View style={styles.modelCard}>
                 <View style={styles.modelHeaderRow}>
                   <View style={styles.modelBadge}>
@@ -600,15 +601,15 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
               </View>
             )}
 
-            {!engineReady && initError && (
+            {!isRunningInExpoGo() && !engineReady && initError && (
               <View style={styles.offlineErrorBadge}>
                 <Ionicons name="alert-circle" size={13} color="#FF5E7E" />
                 <Text style={styles.offlineErrorBadgeText}>Speech Engine Setup Required</Text>
               </View>
             )}
 
-            {/* Diagnostic Card shown when engine initialization failed */}
-            {!engineReady && initError && (
+            {/* Diagnostic Card shown when engine initialization failed in standalone/dev builds */}
+            {!isRunningInExpoGo() && !engineReady && initError && (
               <View style={styles.errorDiagnosticBox}>
                 <View style={styles.errorDiagHeader}>
                   <Ionicons name="warning-outline" size={16} color="#FF5E7E" />
