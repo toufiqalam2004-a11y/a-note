@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
+import { PressableScale } from './PressableScale';
 
 interface HeaderProps {
   onMenuPress?: () => void;
@@ -14,14 +15,16 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   return (
     <View style={styles.container}>
-      {/* Left 3D Hamburger Menu Button */}
-      <TouchableOpacity
+      {/* Left 3D Hamburger Menu Button with tactile spring */}
+      <PressableScale
         style={styles.iconButton}
         onPress={onMenuPress}
-        activeOpacity={0.75}
+        activeScale={0.90}
+        accessibilityRole="button"
+        accessibilityLabel="Open Navigation Menu"
       >
         <Ionicons name="menu-outline" size={22} color={THEME.colors.textPrimary} />
-      </TouchableOpacity>
+      </PressableScale>
 
       {/* Center Brand / App Title */}
       <View style={styles.brandContainer}>
@@ -42,15 +45,17 @@ export const Header: React.FC<HeaderProps> = ({
       </View>
 
       {/* Right 3D Notification Bell Button */}
-      <TouchableOpacity
+      <PressableScale
         style={styles.iconButton}
         onPress={onNotificationPress}
-        activeOpacity={0.75}
+        activeScale={0.90}
+        accessibilityRole="button"
+        accessibilityLabel="Notifications"
       >
         <Ionicons name="notifications-outline" size={20} color={THEME.colors.textPrimary} />
         {/* Soft pink notification dot */}
         <View style={styles.notificationDot} />
-      </TouchableOpacity>
+      </PressableScale>
     </View>
   );
 };
@@ -99,33 +104,33 @@ const styles = StyleSheet.create({
   brandRowWithLogo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
+    gap: 10,
   },
   headerLogo: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
   },
   titleA: {
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '900',
     color: THEME.colors.textNavy,
     letterSpacing: -0.3,
   },
   titleNote: {
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '900',
     color: THEME.colors.mint,
     letterSpacing: -0.3,
   },
   subtitle: {
-    fontSize: THEME.typography.sizes.xs,
+    fontSize: 9,
+    fontWeight: '600',
     color: THEME.colors.textMuted,
-    fontWeight: '500',
-    marginTop: 1,
+    letterSpacing: 0.8,
   },
 });

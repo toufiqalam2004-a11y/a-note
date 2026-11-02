@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { THEME } from '../constants/theme';
 
 interface OverallProgressCardProps {
@@ -14,6 +14,22 @@ export const OverallProgressCard: React.FC<OverallProgressCardProps> = ({
   const percentage =
     totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
 
+  const widthAnim = useRef(new Animated.Value(Math.min(100, percentage))).current;
+
+  useEffect(() => {
+    Animated.timing(widthAnim, {
+      toValue: Math.min(100, percentage),
+      duration: 380,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false, // width on isolated leaf bar maintains corner radius without layout side-effects
+    }).start();
+  }, [percentage, widthAnim]);
+
+  const animatedWidth = widthAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+  });
+
   return (
     <View style={styles.card}>
       {/* Top Header Row */}
@@ -24,7 +40,7 @@ export const OverallProgressCard: React.FC<OverallProgressCardProps> = ({
 
       {/* Progress Track */}
       <View style={styles.track}>
-        <View style={[styles.fill, { width: `${Math.min(100, percentage)}%` }]} />
+        <Animated.View style={[styles.fill, { width: animatedWidth }]} />
       </View>
 
       {/* Subtitle */}
@@ -70,7 +86,7 @@ const styles = StyleSheet.create({
   },
   track: {
     height: 10,
-    backgroundColor: '#EAE4F5',
+    backgroundColor: '#F0EBF8',
     borderRadius: 5,
     overflow: 'hidden',
     marginBottom: 10,
@@ -81,8 +97,8 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   subtitle: {
-    fontSize: THEME.typography.sizes.xs,
-    color: THEME.colors.textMuted,
+    fontSize: 12,
     fontWeight: '600',
+    color: THEME.colors.textMuted,
   },
 });

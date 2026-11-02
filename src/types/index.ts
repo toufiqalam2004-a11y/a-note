@@ -78,6 +78,7 @@ export type VoiceState =
   | 'processing'
   | 'processingCommand'
   | 'confirmation'
+  | 'clarification'
   | 'success'
   | 'noSpeech'
   | 'error';

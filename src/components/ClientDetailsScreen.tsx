@@ -16,6 +16,7 @@ import { THEME } from '../constants/theme';
 import { formatCurrency, formatDate, formatTime } from '../utils/calculations';
 import { ClientHistoryExportModal } from './ClientHistoryExportModal';
 import { getDeterministicVideoType } from '../constants/videoTypes';
+import { PressableScale } from './PressableScale';
 
 interface ClientDetailsScreenProps {
   client: ClientWithVideos;
@@ -147,9 +148,15 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
     <View style={styles.container}>
       {/* Top Header Row matching Screen 2 in reference */}
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.iconButton} onPress={onBack} activeOpacity={0.75}>
+        <PressableScale
+          style={styles.iconButton}
+          onPress={onBack}
+          activeScale={0.92}
+          accessibilityRole="button"
+          accessibilityLabel="Back to previous screen"
+        >
           <Ionicons name="arrow-back" size={20} color={THEME.colors.textNavy} />
-        </TouchableOpacity>
+        </PressableScale>
 
         <View style={styles.clientProfileHeader}>
           <View style={styles.avatarCircle}>
@@ -162,22 +169,26 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
         </View>
 
         <View style={styles.headerActions}>
-          <TouchableOpacity
+          <PressableScale
             style={styles.editPillBtn}
             onPress={() => onEditClient ? onEditClient(client) : setIsExportModalVisible(true)}
-            activeOpacity={0.75}
+            activeScale={0.94}
+            accessibilityRole="button"
+            accessibilityLabel={`Edit ${client.name}`}
           >
             <Ionicons name="pencil-outline" size={13} color={THEME.colors.textNavy} />
             <Text style={styles.editBtnText}>Edit</Text>
-          </TouchableOpacity>
+          </PressableScale>
 
-          <TouchableOpacity
+          <PressableScale
             style={styles.iconButtonSmall}
             onPress={handleOptionsPress}
-            activeOpacity={0.75}
+            activeScale={0.92}
+            accessibilityRole="button"
+            accessibilityLabel="More client options"
           >
             <Ionicons name="ellipsis-vertical" size={18} color={THEME.colors.textNavy} />
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       </View>
 
@@ -246,10 +257,13 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
 
         {/* Navigation Tabs (Videos, History, Reports) */}
         <View style={styles.tabBar}>
-          <TouchableOpacity
+          <PressableScale
             style={[styles.tabPill, activeTab === 'videos' && styles.tabPillActiveMint]}
             onPress={() => setActiveTab('videos')}
-            activeOpacity={0.7}
+            activeScale={0.94}
+            accessibilityRole="button"
+            accessibilityLabel="Videos Tab"
+            accessibilityState={{ selected: activeTab === 'videos' }}
           >
             <Ionicons
               name="videocam-outline"
@@ -264,15 +278,18 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
             >
               Videos
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
 
-          <TouchableOpacity
+          <PressableScale
             style={[styles.tabPill, activeTab === 'history' && styles.tabPillActivePurple]}
             onPress={() => {
               setActiveTab('history');
               setIsExportModalVisible(true);
             }}
-            activeOpacity={0.7}
+            activeScale={0.94}
+            accessibilityRole="button"
+            accessibilityLabel="History Tab"
+            accessibilityState={{ selected: activeTab === 'history' }}
           >
             <Ionicons
               name="time-outline"
@@ -287,15 +304,18 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
             >
               History
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
 
-          <TouchableOpacity
+          <PressableScale
             style={[styles.tabPill, activeTab === 'reports' && styles.tabPillActivePurple]}
             onPress={() => {
               setActiveTab('reports');
               setIsExportModalVisible(true);
             }}
-            activeOpacity={0.7}
+            activeScale={0.94}
+            accessibilityRole="button"
+            accessibilityLabel="Reports Tab"
+            accessibilityState={{ selected: activeTab === 'reports' }}
           >
             <Ionicons
               name="document-text-outline"
@@ -310,7 +330,7 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
             >
               Reports
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
 
         {/* Video Checklist Items (Matching Screen 2) */}
@@ -428,10 +448,12 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
 
       {/* Floating Bottom Button: "Mark Video with Voice" */}
       <View style={[styles.bottomBarContainer, { bottom: Math.max(insets.bottom, 16) + 8 }]}>
-        <TouchableOpacity
+        <PressableScale
           style={styles.voiceFloatingBtn}
           onPress={onOpenVoice}
-          activeOpacity={0.85}
+          activeScale={0.96}
+          accessibilityRole="button"
+          accessibilityLabel="Mark Video with Voice Assistant"
         >
           <View style={styles.voiceBtnCircleIcon}>
             <Ionicons name="mic" size={18} color={THEME.colors.purple} />
@@ -442,7 +464,7 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
           <View style={styles.voiceBtnCircleIcon}>
             <Ionicons name="arrow-forward" size={16} color={THEME.colors.purple} />
           </View>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
 
       {/* History & Reports Modal */}

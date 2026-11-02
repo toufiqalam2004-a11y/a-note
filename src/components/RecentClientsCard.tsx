@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ClientWithVideos } from '../types';
 import { THEME } from '../constants/theme';
 import { formatCurrency } from '../utils/calculations';
+import { PressableScale } from './PressableScale';
 
 interface RecentClientsCardProps {
   clients: ClientWithVideos[];
@@ -29,9 +30,15 @@ export const RecentClientsCard: React.FC<RecentClientsCardProps> = ({
       {/* Section Header */}
       <View style={styles.headerRow}>
         <Text style={styles.sectionTitle}>Recent Clients</Text>
-        <TouchableOpacity onPress={onSeeAllPress} activeOpacity={0.7}>
-          <Text style={styles.seeAllText}>See All</Text>
-        </TouchableOpacity>
+        {onSeeAllPress && (
+          <PressableScale
+            onPress={onSeeAllPress}
+            activeScale={0.93}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.seeAllText}>See All</Text>
+          </PressableScale>
+        )}
       </View>
 
       {/* Clients Card Container */}
@@ -53,11 +60,13 @@ export const RecentClientsCard: React.FC<RecentClientsCardProps> = ({
             const isLast = index === Math.min(clients.length, 5) - 1;
 
             return (
-              <TouchableOpacity
+              <PressableScale
                 key={client.id}
                 style={[styles.clientRow, !isLast && styles.rowDivider]}
                 onPress={() => onSelectClient(client)}
-                activeOpacity={0.7}
+                activeScale={0.98}
+                accessibilityRole="button"
+                accessibilityLabel={`${client.name}, ${completed} of ${total} videos completed`}
               >
                 {/* 3D Circular Avatar with initial */}
                 <View style={[styles.avatarCircle, { backgroundColor: avatarBg }]}>
@@ -77,7 +86,7 @@ export const RecentClientsCard: React.FC<RecentClientsCardProps> = ({
                   <Text style={styles.percentText}>{percent}%</Text>
                   <Ionicons name="chevron-forward" size={16} color={THEME.colors.textMuted} />
                 </View>
-              </TouchableOpacity>
+              </PressableScale>
             );
           })
         )}

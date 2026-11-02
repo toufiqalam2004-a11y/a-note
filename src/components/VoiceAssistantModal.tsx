@@ -7,33 +7,26 @@ import {
   TouchableOpacity,
   TextInput,
   Animated,
-  ActivityIndicator,
-  Platform,
   KeyboardAvoidingView,
   BackHandler,
   ScrollView,
-  Alert,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClientWithVideos, PendingVoiceAction, VoiceState } from '../types';
 import { THEME } from '../constants/theme';
 import { parseVoiceCommand, ParseResult } from '../services/voiceParser';
+import { PressableScale } from './PressableScale';
+import { GlassView } from './GlassView';
 import {
+  startSpeechRecognition,
+  stopSpeechRecognition,
+  abortSpeechRecognition,
+  getSpeechRecognitionCapabilities,
+  SpeechCapabilities,
   isRunningInExpoGo,
-  isSherpaNativeAvailable,
-  startSherpaOfflineListening,
-  stopSherpaOfflineListening,
-  getOrInitializeSherpaEngine,
-  getSherpaDiagnostics,
-} from '../services/sherpaOfflineSpeechService';
-import {
-  checkSherpaModelInstalled,
-  downloadSherpaModel,
-  deleteSherpaModel,
-  DetailedFileCheck,
-  SHERPA_ZIPFORMER_EN_20M,
-} from '../services/sherpaModelManager';
+} from '../services/speechRecognitionService';
 
 interface VoiceAssistantModalProps {
   visible: boolean;
@@ -45,8 +38,10 @@ interface VoiceAssistantModalProps {
 }
 
 const EXAMPLE_CHIPS = [
-  'Rahul, video five is done',
-  'Video 5 is done',
+  'Hardik, video 5 is done',
+  "Show Hardik's progress",
+  'Hardik',
+  'video 5',
 ];
 
 export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
@@ -59,147 +54,93 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
-  const [transcript, setTranscript] = useState('');
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [finalTranscript, setFinalTranscript] = useState('');
   const [statusMessage, setStatusMessage] = useState('Tap microphone to speak');
-  const [typedInput, setTypedInput] = useState('');
-  const [feedbackColor, setFeedbackColor] = useState<string>(THEME.colors.purple);
+  const [feedbackColor, setFeedbackColor] = useState(THEME.colors.mint);
+  const [typedCommand, setTypedCommand] = useState('');
+  const [capabilities, setCapabilities] = useState<SpeechCapabilities | null>(null);
+  const [parsedResult, setParsedResult] = useState<ParseResult | null>(null);
 
-  // Sherpa-ONNX model installation state
-  const [modelInstalled, setModelInstalled] = useState<boolean | null>(null);
-  const [isDownloadingModel, setIsDownloadingModel] = useState<boolean>(false);
-  const [downloadProgress, setDownloadProgress] = useState<number>(0);
-  const [downloadStatusText, setDownloadStatusText] = useState<string>('');
-
-  // Native Sherpa-ONNX engine readiness state
-  const [engineReady, setEngineReady] = useState<boolean>(false);
-  const [isInitializingEngine, setIsInitializingEngine] = useState<boolean>(false);
-  const [initError, setInitError] = useState<string | null>(null);
-  const [fileChecks, setFileChecks] = useState<DetailedFileCheck[] | null>(null);
-  const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false);
-
-  // Prevent duplicate transcript triggers
-  const lastProcessedRef = useRef<{ text: string; time: number }>({ text: '', time: 0 });
-
-  // Audio-reactive animated values for Google-style speech interaction
+  // Audio-reactive Google-style 4-bar waveform (transforms useNativeDriver: true)
+  const wave1 = useRef(new Animated.Value(0.15)).current;
+  const wave2 = useRef(new Animated.Value(0.15)).current;
+  const wave3 = useRef(new Animated.Value(0.15)).current;
+  const wave4 = useRef(new Animated.Value(0.15)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const wave1 = useRef(new Animated.Value(5)).current;
-  const wave2 = useRef(new Animated.Value(5)).current;
-  const wave3 = useRef(new Animated.Value(5)).current;
-  const wave4 = useRef(new Animated.Value(5)).current;
 
-  // Calm, resting state when user is silent or not speaking
+  // Single-session guard to prevent duplicate execution
+  const lastProcessedRef = useRef<{ text: string; time: number }>({ text: '', time: 0 });
+  const isExecutingRef = useRef(false);
+
+  // Load speech engine capabilities on open
+  useEffect(() => {
+    if (!visible) return;
+    let mounted = true;
+
+    getSpeechRecognitionCapabilities('en-IN')
+      .then((caps) => {
+        if (mounted) {
+          setCapabilities(caps);
+          if (caps.permissionStatus === 'denied') {
+            setStatusMessage(
+              Platform.OS === 'ios'
+                ? 'Microphone permission denied. Enable in iOS Settings > A Note.'
+                : 'Microphone permission denied. Enable in App Settings.'
+            );
+            setFeedbackColor(THEME.colors.amber);
+          }
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      mounted = false;
+    };
+  }, [visible]);
+
+  // Reset waveform to calm resting baseline
   const resetWaveform = useCallback(() => {
     Animated.parallel([
-      Animated.timing(wave1, { toValue: 5, duration: 150, useNativeDriver: false }),
-      Animated.timing(wave2, { toValue: 5, duration: 150, useNativeDriver: false }),
-      Animated.timing(wave3, { toValue: 5, duration: 150, useNativeDriver: false }),
-      Animated.timing(wave4, { toValue: 5, duration: 150, useNativeDriver: false }),
-      Animated.timing(pulseAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+      Animated.timing(wave1, { toValue: 0.15, duration: 140, useNativeDriver: true }),
+      Animated.timing(wave2, { toValue: 0.15, duration: 140, useNativeDriver: true }),
+      Animated.timing(wave3, { toValue: 0.15, duration: 140, useNativeDriver: true }),
+      Animated.timing(wave4, { toValue: 0.15, duration: 140, useNativeDriver: true }),
+      Animated.timing(pulseAnim, { toValue: 1, duration: 140, useNativeDriver: true }),
     ]).start();
   }, [wave1, wave2, wave3, wave4, pulseAnim]);
 
-  // Dynamically reacts to real audio RMS energy only when speech activity occurs
+  // Update waveform bars responsively when speech volume changes
   const updateAudioWaveform = useCallback(
-    (rms: number, isSpeech: boolean) => {
-      if (!isSpeech) {
-        // Keep UI calm and motionless during silence
+    (normalizedVolume: number) => {
+      if (normalizedVolume <= 0.05) {
         Animated.parallel([
-          Animated.timing(wave1, { toValue: 5, duration: 100, useNativeDriver: false }),
-          Animated.timing(wave2, { toValue: 5, duration: 100, useNativeDriver: false }),
-          Animated.timing(wave3, { toValue: 5, duration: 100, useNativeDriver: false }),
-          Animated.timing(wave4, { toValue: 5, duration: 100, useNativeDriver: false }),
+          Animated.timing(wave1, { toValue: 0.15, duration: 100, useNativeDriver: true }),
+          Animated.timing(wave2, { toValue: 0.15, duration: 100, useNativeDriver: true }),
+          Animated.timing(wave3, { toValue: 0.15, duration: 100, useNativeDriver: true }),
+          Animated.timing(wave4, { toValue: 0.15, duration: 100, useNativeDriver: true }),
           Animated.timing(pulseAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
         ]).start();
         return;
       }
 
-      // Normalized speech volume in range [0, 1]
-      const energy = Math.min(1, Math.max(0, (rms - 0.015) / 0.12));
-      const h1 = Math.round(6 + energy * 26);
-      const h2 = Math.round(8 + energy * 38);
-      const h3 = Math.round(8 + energy * 34);
-      const h4 = Math.round(6 + energy * 24);
-      const scale = 1 + energy * 0.12;
+      const energy = Math.min(1, Math.max(0, (normalizedVolume - 0.05) / 0.95));
+      const s1 = +(0.2 + energy * 0.75).toFixed(2);
+      const s2 = +(0.25 + energy * 1.15).toFixed(2);
+      const s3 = +(0.25 + energy * 0.95).toFixed(2);
+      const s4 = +(0.2 + energy * 0.65).toFixed(2);
+      const scale = +(1.0 + energy * 0.12).toFixed(2);
 
       Animated.parallel([
-        Animated.timing(wave1, { toValue: h1, duration: 75, useNativeDriver: false }),
-        Animated.timing(wave2, { toValue: h2, duration: 75, useNativeDriver: false }),
-        Animated.timing(wave3, { toValue: h3, duration: 75, useNativeDriver: false }),
-        Animated.timing(wave4, { toValue: h4, duration: 75, useNativeDriver: false }),
+        Animated.timing(wave1, { toValue: s1, duration: 75, useNativeDriver: true }),
+        Animated.timing(wave2, { toValue: s2, duration: 75, useNativeDriver: true }),
+        Animated.timing(wave3, { toValue: s3, duration: 75, useNativeDriver: true }),
+        Animated.timing(wave4, { toValue: s4, duration: 75, useNativeDriver: true }),
         Animated.timing(pulseAnim, { toValue: scale, duration: 75, useNativeDriver: true }),
       ]).start();
     },
     [wave1, wave2, wave3, wave4, pulseAnim]
   );
-
-  // Check offline voice model installation status & initialize engine
-  const initializeEngineFlow = useCallback(async () => {
-    setIsInitializingEngine(true);
-    setInitError(null);
-
-    try {
-      // 1. Check if genuinely inside Expo Go store client FIRST before any module/file checks
-      if (isRunningInExpoGo()) {
-        setEngineReady(false);
-        setModelInstalled(false);
-        setStatusMessage(
-          'Expo Go detected: Offline voice recognition requires a compatible development or standalone APK. You can type commands below or tap an example chip.'
-        );
-        setFeedbackColor(THEME.colors.amber);
-        return;
-      }
-
-      const diag = await getSherpaDiagnostics();
-      console.log('[VoiceAssistantModal] Diagnostics at launch:', JSON.stringify(diag));
-
-      // 2. Check model files on disk
-      const res = await checkSherpaModelInstalled();
-      setFileChecks(res.fileDetails);
-
-      if (!res.isInstalled) {
-        setModelInstalled(false);
-        setEngineReady(false);
-        setStatusMessage('Download the free offline voice model (~43 MB) to enable speech.');
-        setFeedbackColor(THEME.colors.purple);
-        return;
-      }
-
-      setModelInstalled(true);
-      setStatusMessage('Initializing offline speech recognition engine...');
-      setFeedbackColor(THEME.colors.purple);
-
-      // 3. Initialize native streaming STT engine
-      const engineRes = await getOrInitializeSherpaEngine();
-      if (engineRes.engine) {
-        setEngineReady(true);
-        setInitError(null);
-        setStatusMessage('100% Offline Speech Ready! Tap microphone to speak.');
-        setFeedbackColor(THEME.colors.mint);
-      } else {
-        setEngineReady(false);
-        const errMsg = engineRes.error || 'Failed to initialize offline speech recognition engine.';
-        setInitError(errMsg);
-        setStatusMessage(errMsg);
-        setFeedbackColor('#FF5E7E');
-      }
-    } catch (err: any) {
-      setEngineReady(false);
-      const errMsg = err?.message || 'Error checking offline speech engine.';
-      setInitError(errMsg);
-      setStatusMessage(errMsg);
-      setFeedbackColor('#FF5E7E');
-    } finally {
-      setIsInitializingEngine(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!visible) return;
-    initializeEngineFlow();
-    return () => {
-      stopSherpaOfflineListening();
-    };
-  }, [visible, initializeEngineFlow]);
 
   const isListeningState =
     voiceState === 'listening' ||
@@ -207,8 +148,8 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     voiceState === 'partialTranscript' ||
     voiceState === 'finalizing';
 
-  const handleStopListening = useCallback(() => {
-    stopSherpaOfflineListening();
+  const handleStopListening = useCallback(async () => {
+    await stopSpeechRecognition();
     resetWaveform();
     setVoiceState((prev) => {
       if (
@@ -221,25 +162,42 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       }
       return prev;
     });
-    setStatusMessage(engineReady ? 'Tap microphone to speak' : 'Speech engine not ready');
-  }, [engineReady, resetWaveform]);
+    setStatusMessage('Tap microphone to speak');
+  }, [resetWaveform]);
 
   // Safe Android BackHandler
-  const handleSafeBackOrClose = useCallback(() => {
-    handleStopListening();
+  const handleSafeBackOrClose = useCallback(async () => {
+    await abortSpeechRecognition();
+    resetWaveform();
+    setVoiceState('idle');
+    setParsedResult(null);
     onClose();
     return true;
-  }, [handleStopListening, onClose]);
+  }, [resetWaveform, onClose]);
 
   useEffect(() => {
     if (!visible) return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', handleSafeBackOrClose);
+    const onBackPress = () => {
+      handleSafeBackOrClose();
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => sub.remove();
   }, [visible, handleSafeBackOrClose]);
 
-  // Execute command parsing & action
-  const handleProcessCommand = (commandText: string) => {
-    const result: ParseResult = parseVoiceCommand(commandText, clients);
+  // Process final command through deterministic parser
+  const handleProcessCommand = (commandText: string, confidence?: number) => {
+    const clean = commandText.trim().toLowerCase();
+    const now = Date.now();
+
+    // Prevent duplicate rapid processing
+    if (clean === lastProcessedRef.current.text && now - lastProcessedRef.current.time < 1800) {
+      return;
+    }
+    lastProcessedRef.current = { text: clean, time: now };
+
+    const result = parseVoiceCommand(commandText, clients, confidence);
+    setParsedResult(result);
 
     // 1. Navigation query
     if (result.targetScreen) {
@@ -248,29 +206,32 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       setFeedbackColor(THEME.colors.mint);
       setTimeout(() => {
         onNavigate(result.targetScreen!, result.matchedClient);
-        onClose();
+        handleSafeBackOrClose();
       }, 700);
       return;
     }
 
-    // 2. Ambiguity
-    if (result.isAmbiguous) {
-      setVoiceState('idle');
+    // 2. Ambiguity / Clarification Required (e.g. bare "video 5" or multiple Rahuls)
+    if (result.actionType === 'CLARIFICATION' || result.isAmbiguous) {
+      setVoiceState('clarification');
       setStatusMessage(result.ambiguityPrompt || result.message);
       setFeedbackColor(THEME.colors.amber);
       return;
     }
 
-    // 3. Client identification query (e.g. user said "Hardik", "client Hardik", "show Hardik")
-    // Displays the recognized client, keeps data safe, zero SQLite mutation!
-    if (result.actionType === 'QUERY' && result.matchedClient) {
+    // 3. Client identification query ("Hardik") or progress query ("Show Hardik's progress")
+    if (
+      result.actionType === 'QUERY' ||
+      result.actionType === 'CLIENT_PROGRESS' ||
+      result.actionType === 'SELECT_VIDEO'
+    ) {
       setVoiceState('success');
       setStatusMessage(result.message);
       setFeedbackColor(THEME.colors.purple);
       return;
     }
 
-    // 4. Command Unrecognized or validation error
+    // 4. Command Unrecognized
     if (!result.success) {
       setVoiceState('error');
       setStatusMessage(result.message);
@@ -278,7 +239,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       return;
     }
 
-    // 5. Already completed video: friendly neutral/green message, NO error dialog, NO duplicate history
+    // 5. Already completed video
     if (result.alreadyCompleted) {
       setVoiceState('success');
       setStatusMessage(result.message);
@@ -287,8 +248,19 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       return;
     }
 
-    // 6. Valid unambiguous action: DIRECT EXECUTION (No unnecessary confirmation popup!)
+    // 6. Action requiring explicit confirmation (COMPLETE_VIDEO, ADD_CLIENT, or low confidence)
     if (result.pendingAction) {
+      if (
+        result.requiresConfirmation ||
+        result.pendingAction.type === 'COMPLETE_VIDEO' ||
+        result.pendingAction.type === 'ADD_CLIENT'
+      ) {
+        setVoiceState('confirmation');
+        setStatusMessage('Please confirm the action below:');
+        setFeedbackColor(THEME.colors.amber);
+        return;
+      }
+
       setVoiceState('success');
       setStatusMessage(result.message);
       setFeedbackColor(THEME.colors.mint);
@@ -297,190 +269,140 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       return;
     }
 
-    // General success fallback
     setVoiceState('success');
     setStatusMessage(result.message);
     setFeedbackColor(THEME.colors.mint);
   };
 
-  const handleDownloadModel = async () => {
-    setIsDownloadingModel(true);
-    setDownloadProgress(0);
-    setDownloadStatusText('Starting download from Hugging Face...');
-    setStatusMessage('Downloading offline voice model (~43.6 MB)...');
-    setFeedbackColor(THEME.colors.purple);
-
-    const result = await downloadSherpaModel((percent, status) => {
-      setDownloadProgress(percent);
-      setDownloadStatusText(status);
-    });
-
-    setIsDownloadingModel(false);
-
-    if (result.success) {
-      setModelInstalled(true);
-      onNotify('Offline voice model downloaded successfully! Initializing engine...');
-      await initializeEngineFlow();
-    } else {
-      setStatusMessage(result.error || 'Failed to download model. You can type commands below.');
-      setFeedbackColor('#FF5E7E');
+  const handleConfirmAction = () => {
+    if (parsedResult?.pendingAction && !isExecutingRef.current) {
+      isExecutingRef.current = true;
+      onExecutePendingAction(parsedResult.pendingAction);
+      onNotify(parsedResult.message);
+      setVoiceState('success');
+      setStatusMessage(`Completed: ${parsedResult.pendingAction.description}`);
+      setFeedbackColor(THEME.colors.mint);
+      setTimeout(() => {
+        isExecutingRef.current = false;
+        setParsedResult(null);
+      }, 1000);
     }
   };
 
-  const handleRepairOrRedownload = () => {
-    Alert.alert(
-      'Repair / Re-download Model',
-      'This will clear the current offline model files (~43 MB) and re-download fresh model files. Would you like to proceed?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Re-download',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteSherpaModel();
-            setModelInstalled(false);
-            setEngineReady(false);
-            setInitError(null);
-            handleDownloadModel();
-          },
-        },
-      ]
-    );
+  const handleCancelAction = () => {
+    setParsedResult(null);
+    setVoiceState('idle');
+    setStatusMessage('Action cancelled. Tap microphone to speak.');
+    setFeedbackColor(THEME.colors.mint);
   };
 
   const handleStartListening = async () => {
-    setTranscript('');
+    setInterimTranscript('');
+    setFinalTranscript('');
+    setParsedResult(null);
     setFeedbackColor(THEME.colors.mint);
     resetWaveform();
 
     if (isRunningInExpoGo()) {
       setVoiceState('listening');
-      setStatusMessage('Expo Go detected: Offline voice requires the standalone APK. Type a command below or tap an example chip.');
+      setStatusMessage('Expo Go detected: Speech recognition requires the standalone APK. Type a command below.');
       return;
     }
 
-    if (!modelInstalled) {
-      setStatusMessage('Download the offline voice model to start.');
-      setFeedbackColor(THEME.colors.amber);
-      return;
-    }
-
-    if (!engineReady) {
-      if (initError) {
-        setStatusMessage(initError);
-        setFeedbackColor('#FF5E7E');
-      } else {
-        setStatusMessage('Offline recognition engine is not ready. Initializing...');
-        setFeedbackColor(THEME.colors.purple);
-        await initializeEngineFlow();
-      }
-      return;
-    }
+    const clientNames = clients.map((c) => c.name);
 
     setVoiceState('requestingPermission');
     setStatusMessage('Starting microphone...');
 
-    const res = await startSherpaOfflineListening({
-      onListeningStart: () => {
-        setVoiceState('listening');
-        setStatusMessage('Listening... Speak naturally.');
-        setFeedbackColor(THEME.colors.mint);
-        resetWaveform();
-      },
-      onAudioLevel: (rms: number, isSpeech: boolean) => {
-        updateAudioWaveform(rms, isSpeech);
-      },
-      onSpeechStart: () => {
-        setVoiceState((prev) => (prev === 'listening' ? 'speechDetected' : prev));
-        setStatusMessage('Listening... (speech detected)');
-      },
-      onTranscript: (text: string, isFinal: boolean) => {
-        if (!text) return;
-        setTranscript(text);
-        if (!isFinal) {
-          setVoiceState('partialTranscript');
-        } else {
+    const res = await startSpeechRecognition(
+      {
+        onStart: () => {
+          setVoiceState('listening');
+          setStatusMessage('Listening... Speak naturally.');
+          setFeedbackColor(THEME.colors.mint);
           resetWaveform();
-          setVoiceState('finalizing');
-          setStatusMessage('Finalizing transcript...');
+        },
+        onSpeechStart: () => {
+          setVoiceState('speechDetected');
+          setStatusMessage('Listening... (speech detected)');
+        },
+        onVolumeChange: (normVol: number) => {
+          updateAudioWaveform(normVol);
+        },
+        onTranscript: (transcript: string, isFinal: boolean, confidence?: number) => {
+          if (!transcript) return;
 
-          const clean = text.trim().toLowerCase();
-          const now = Date.now();
-          if (clean === lastProcessedRef.current.text && now - lastProcessedRef.current.time < 2000) {
-            return;
-          }
-          lastProcessedRef.current = { text: clean, time: now };
+          if (!isFinal) {
+            setInterimTranscript(transcript);
+            setVoiceState('partialTranscript');
+          } else {
+            setInterimTranscript('');
+            setFinalTranscript(transcript);
+            resetWaveform();
+            setVoiceState('processing');
+            setStatusMessage(`Processing: "${transcript}"`);
 
-          setTimeout(() => {
-            setVoiceState('processingCommand');
-            setStatusMessage(`Processing: "${text}"`);
-            handleProcessCommand(text);
-          }, 80);
-        }
-      },
-      onSilenceTimeout: () => {
-        resetWaveform();
-        setVoiceState('noSpeech');
-        setStatusMessage('No speech detected. Tap microphone to try again.');
-        setFeedbackColor(THEME.colors.amber);
-      },
-      onError: (errMsg: string) => {
-        resetWaveform();
-        setVoiceState('error');
-        setStatusMessage(errMsg || 'Recognition error. You can retry or type below.');
-        setFeedbackColor('#FF5E7E');
-      },
-      onListeningEnd: () => {
-        resetWaveform();
-        setVoiceState((prev) => {
-          if (
-            prev === 'listening' ||
-            prev === 'speechDetected' ||
-            prev === 'partialTranscript' ||
-            prev === 'finalizing'
-          ) {
-            return 'idle';
+            setTimeout(() => {
+              handleProcessCommand(transcript, confidence);
+            }, 60);
           }
-          return prev;
-        });
+        },
+        onError: (errMsg: string) => {
+          resetWaveform();
+          setVoiceState('error');
+          setStatusMessage(errMsg);
+          setFeedbackColor('#FF5E7E');
+        },
+        onEnd: () => {
+          resetWaveform();
+          setVoiceState((prev) => {
+            if (
+              prev === 'listening' ||
+              prev === 'speechDetected' ||
+              prev === 'partialTranscript' ||
+              prev === 'finalizing'
+            ) {
+              return 'idle';
+            }
+            return prev;
+          });
+        },
       },
-    });
+      {
+        locale: 'en-IN',
+        clientNames,
+      }
+    );
 
     if (!res.success) {
-      resetWaveform();
       setVoiceState('error');
-      setStatusMessage(res.error || 'Could not start offline microphone.');
+      setStatusMessage(res.error || 'Could not start speech recognition.');
       setFeedbackColor('#FF5E7E');
     }
   };
 
-  const handleToggleMic = () => {
-    if (isListeningState) {
-      handleStopListening();
-    } else {
-      handleStartListening();
-    }
-  };
-
   const handleSendTypedCommand = () => {
-    if (!typedInput.trim()) return;
-    const cmd = typedInput.trim();
-    setTypedInput('');
-    setTranscript(cmd);
+    const cmd = typedCommand.trim();
+    if (!cmd) return;
+    setTypedCommand('');
+    setInterimTranscript('');
+    setFinalTranscript(cmd);
     setVoiceState('processing');
     setStatusMessage(`Processing: "${cmd}"`);
     setTimeout(() => {
       handleProcessCommand(cmd);
-    }, 150);
+    }, 100);
   };
 
-  const handleChipPress = (cmd: string) => {
-    setTranscript(cmd);
+  const handleSelectExampleChip = (chip: string) => {
+    setTypedCommand('');
+    setInterimTranscript('');
+    setFinalTranscript(chip);
     setVoiceState('processing');
-    setStatusMessage(`Processing: "${cmd}"`);
+    setStatusMessage(`Processing: "${chip}"`);
     setTimeout(() => {
-      handleProcessCommand(cmd);
-    }, 150);
+      handleProcessCommand(chip);
+    }, 100);
   };
 
   return (
@@ -491,7 +413,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       onRequestClose={handleSafeBackOrClose}
     >
       <View style={[styles.rootContainer, { paddingTop: insets.top }]}>
-        {/* Top Header */}
+        {/* Top Header with Glass Accent */}
         <View style={styles.topHeader}>
           <TouchableOpacity
             style={styles.backButton}
@@ -502,285 +424,347 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
           >
             <Ionicons name="arrow-back" size={20} color={THEME.colors.textNavy} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Voice Assistant</Text>
-          <View style={{ width: 44 }} />
+
+          <View style={styles.headerTitleGroup}>
+            <Text style={styles.headerTitle}>Voice Assistant</Text>
+            <View style={styles.engineBadgeRow}>
+              <View
+                style={[
+                  styles.engineDot,
+                  {
+                    backgroundColor: capabilities?.available
+                      ? THEME.colors.mint
+                      : THEME.colors.amber,
+                  },
+                ]}
+              />
+              <Text style={styles.engineBadgeText}>
+                {Platform.OS === 'ios'
+                  ? isRunningInExpoGo()
+                    ? 'Expo Go (Typed Mode)'
+                    : capabilities?.available
+                    ? `Apple Speech (${capabilities?.currentLocale || 'en-IN'})${capabilities?.supportsOnDevice ? ' • On-Device' : ''}`
+                    : 'Apple Speech (Unavailable)'
+                  : capabilities?.isGoogleAvailable
+                  ? 'Google Speech (en-IN)'
+                  : capabilities?.available
+                  ? 'Android Recognizer (en-IN)'
+                  : isRunningInExpoGo()
+                  ? 'Expo Go (Typed Mode)'
+                  : 'Speech Ready'}
+                {Platform.OS !== 'ios' && capabilities?.supportsOnDevice ? ' • Offline' : ''}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ width: 40 }} />
         </View>
 
         <KeyboardAvoidingView
-          style={styles.keyboardAvoidingContainer}
+          style={styles.contentAvoidView}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* Instruction Banner */}
-            <View style={styles.instructionBox}>
-              <Text style={styles.instructionMain}>
-                Speak naturally to track client videos &amp; progress
-              </Text>
-              <Text style={styles.instructionSub}>
-                Say a client name and video number to complete it directly.
-              </Text>
-            </View>
-
-            {/* Quick Example Chips */}
-            <View style={styles.chipsRow}>
-              {EXAMPLE_CHIPS.map((chip, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={styles.exampleChip}
-                  onPress={() => handleChipPress(chip)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="sparkles" size={12} color={THEME.colors.mint} />
-                  <Text style={styles.chipText}>“{chip}”</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Offline Model Setup Card (shown if model is not yet downloaded, only in standalone/dev builds) */}
-            {!isRunningInExpoGo() && modelInstalled === false && (
-              <View style={styles.modelCard}>
-                <View style={styles.modelHeaderRow}>
-                  <View style={styles.modelBadge}>
-                    <Ionicons name="shield-checkmark" size={13} color="#7C5CFC" />
-                    <Text style={styles.modelBadgeText}>FREE ON-DEVICE STT</Text>
-                  </View>
-                  <Text style={styles.modelSizeText}>~{SHERPA_ZIPFORMER_EN_20M.approxSizeMb} MB</Text>
-                </View>
-
-                <Text style={styles.modelTitle}>{SHERPA_ZIPFORMER_EN_20M.displayName}</Text>
-                <Text style={styles.modelSubtitle}>
-                  Download the open-source speech model once to enable 100% offline speech recognition without cloud APIs.
+            {/* Status Pill Badge */}
+            <View style={styles.statusPillContainer}>
+              <View style={[styles.statusPill, { borderColor: feedbackColor }]}>
+                <Ionicons
+                  name={
+                    voiceState === 'listening' || voiceState === 'speechDetected'
+                      ? 'mic'
+                      : voiceState === 'success'
+                      ? 'checkmark-circle'
+                      : voiceState === 'error'
+                      ? 'alert-circle'
+                      : voiceState === 'clarification' || voiceState === 'confirmation'
+                      ? 'help-circle'
+                      : 'information-circle'
+                  }
+                  size={14}
+                  color={feedbackColor}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.statusPillText, { color: feedbackColor }]}>
+                  {statusMessage}
                 </Text>
-
-                {isDownloadingModel ? (
-                  <View style={styles.downloadContainer}>
-                    <View style={styles.progressBarBg}>
-                      <View style={[styles.progressBarFill, { width: `${downloadProgress}%` }]} />
-                    </View>
-                    <View style={styles.progressRow}>
-                      <Text style={styles.progressStatusText} numberOfLines={1}>
-                        {downloadStatusText || 'Downloading...'}
-                      </Text>
-                      <Text style={styles.progressPercentText}>{downloadProgress}%</Text>
-                    </View>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.downloadButton}
-                    onPress={handleDownloadModel}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="cloud-download-outline" size={18} color="#FFFFFF" />
-                    <Text style={styles.downloadButtonText}>Download Offline Model (~43 MB)</Text>
-                  </TouchableOpacity>
-                )}
               </View>
-            )}
+            </View>
 
-            {/* Central Prominent Microphone Button */}
-            <View style={styles.micCenterContainer}>
-              <Animated.View
-                style={[
-                  styles.pulseRing,
-                  {
-                    transform: [{ scale: pulseAnim }],
-                    borderColor:
-                      isListeningState
-                        ? THEME.colors.mint
-                        : 'rgba(124, 92, 252, 0.2)',
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.micButton,
-                    isListeningState ? styles.micButtonListening : styles.micButtonIdle,
-                  ]}
-                  onPress={handleToggleMic}
-                  activeOpacity={0.85}
-                  accessibilityRole="button"
-                  accessibilityLabel={isListeningState ? 'Stop listening' : 'Start listening'}
-                >
-                  <Ionicons
-                    name={isListeningState ? 'mic' : 'mic-outline'}
-                    size={36}
-                    color="#FFFFFF"
-                  />
-                </TouchableOpacity>
-              </Animated.View>
-
-              {/* Google-style speech-reactive 4-bar visualizer */}
-              {isListeningState && (
-                <View style={styles.waveContainer}>
-                  <Animated.View style={[styles.waveBar, { height: wave1, backgroundColor: '#4285F4' }]} />
-                  <Animated.View style={[styles.waveBar, { height: wave2, backgroundColor: '#EA4335' }]} />
-                  <Animated.View style={[styles.waveBar, { height: wave3, backgroundColor: '#FBBC05' }]} />
-                  <Animated.View style={[styles.waveBar, { height: wave4, backgroundColor: '#34A853' }]} />
+            {/* Glass Visualizer & Mic Section */}
+            <GlassView
+              style={styles.visualizerGlassCard}
+              intensity={35}
+              borderRadius={28}
+              borderColor="rgba(255, 255, 255, 0.75)"
+            >
+              <View style={styles.visualizerInner}>
+                {/* 4-bar Waveform */}
+                <View style={styles.waveformContainer}>
+                  {[wave1, wave2, wave3, wave4].map((anim, idx) => (
+                    <Animated.View
+                      key={idx}
+                      style={[
+                        styles.waveBar,
+                        {
+                          transform: [{ scaleY: anim }],
+                          backgroundColor: isListeningState
+                            ? idx % 2 === 0
+                              ? THEME.colors.mint
+                              : THEME.colors.purple
+                            : THEME.colors.border,
+                        },
+                      ]}
+                    />
+                  ))}
                 </View>
-              )}
-            </View>
 
-            {/* Status Message */}
-            <View style={styles.statusCard}>
-              <View style={[styles.statusDot, { backgroundColor: feedbackColor }]} />
-              <Text style={[styles.statusText, { color: feedbackColor }]} numberOfLines={2}>
-                {statusMessage}
-              </Text>
-            </View>
+                {/* Floating Microphone Button with Direct Manipulation */}
+                <View style={styles.micButtonContainer}>
+                  <PressableScale
+                    onPress={isListeningState ? handleStopListening : handleStartListening}
+                    activeScale={0.92}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      isListeningState
+                        ? 'Stop listening'
+                        : 'Start voice recognition'
+                    }
+                  >
+                    <Animated.View
+                      style={[
+                        styles.micButton,
+                        {
+                          transform: [{ scale: pulseAnim }],
+                          backgroundColor: isListeningState
+                            ? THEME.colors.mint
+                            : THEME.colors.purple,
+                          shadowColor: isListeningState
+                            ? THEME.colors.mint
+                            : THEME.colors.purple,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={isListeningState ? 'square' : 'mic'}
+                        size={32}
+                        color="#FFFFFF"
+                      />
+                    </Animated.View>
+                  </PressableScale>
+                </View>
 
-            {/* Explicit Retry Action when silence or no speech was detected */}
-            {voiceState === 'noSpeech' && (
-              <TouchableOpacity
-                style={styles.retryMicButton}
-                onPress={handleStartListening}
-                activeOpacity={0.8}
+                <Text style={styles.micPrompt}>
+                  {isListeningState ? 'Tap to finish speaking' : 'Tap to speak a command'}
+                </Text>
+              </View>
+            </GlassView>
+
+            {/* Transcript Surface (Interim vs Final distinction) */}
+            {(finalTranscript !== '' || interimTranscript !== '') && (
+              <GlassView
+                style={styles.transcriptCard}
+                intensity={40}
+                borderRadius={20}
+                borderColor="rgba(255, 255, 255, 0.85)"
               >
-                <Ionicons name="refresh" size={14} color="#7C5CFC" style={{ marginRight: 6 }} />
-                <Text style={styles.retryMicText}>Tap to Try Again</Text>
-              </TouchableOpacity>
+                <View style={styles.transcriptInner}>
+                  <Text style={styles.transcriptLabel}>
+                    {interimTranscript ? 'Hearing...' : 'Recognized:'}
+                  </Text>
+                  {finalTranscript ? (
+                    <Text style={styles.finalTranscriptText}>"{finalTranscript}"</Text>
+                  ) : null}
+                  {interimTranscript ? (
+                    <Text style={styles.interimTranscriptText}>"{interimTranscript}"</Text>
+                  ) : null}
+                </View>
+              </GlassView>
             )}
 
-            {/* Live Transcript Display shown prominently right near the microphone */}
-            {transcript.length > 0 && (
-              <View style={styles.transcriptBox}>
-                <View style={styles.transcriptHeaderRow}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={13} color={THEME.colors.purple} />
-                  <Text style={styles.transcriptLabel}>
-                    {isListeningState ? 'Listening...' : 'Heard Speech:'}
+            {/* Interpreted Action / Clarification / Confirmation Card */}
+            {parsedResult && (
+              <GlassView
+                style={[
+                  styles.intentCard,
+                  parsedResult.actionType === 'CLARIFICATION'
+                    ? styles.intentCardClarify
+                    : parsedResult.requiresConfirmation
+                    ? styles.intentCardConfirm
+                    : styles.intentCardSuccess,
+                ]}
+                intensity={50}
+                borderRadius={22}
+                borderColor="rgba(255, 255, 255, 0.9)"
+              >
+                <View style={styles.intentInner}>
+                  <View style={styles.intentHeaderRow}>
+                    <Ionicons
+                      name={
+                        parsedResult.actionType === 'CLARIFICATION'
+                          ? 'help-circle'
+                          : parsedResult.requiresConfirmation
+                          ? 'alert-circle'
+                          : 'checkmark-circle'
+                      }
+                      size={20}
+                      color={
+                        parsedResult.actionType === 'CLARIFICATION'
+                          ? THEME.colors.amber
+                          : parsedResult.requiresConfirmation
+                          ? THEME.colors.amber
+                          : THEME.colors.mintDark
+                      }
+                    />
+                    <Text style={styles.intentHeaderTitle}>
+                      {parsedResult.actionType === 'CLARIFICATION'
+                        ? 'Clarification Required'
+                        : parsedResult.requiresConfirmation
+                        ? 'Confirmation Required'
+                        : 'Interpreted Intent'}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.intentDescription}>
+                    {parsedResult.interpretedIntent?.actionDescription || parsedResult.message}
                   </Text>
-                  {isListeningState && (
-                    <View style={styles.liveIndicator}>
-                      <View style={styles.liveDot} />
-                      <Text style={styles.liveText}>LIVE</Text>
+
+                  {/* Intent details pill row */}
+                  {parsedResult.interpretedIntent && (
+                    <View style={styles.intentPillRow}>
+                      {parsedResult.interpretedIntent.clientName && (
+                        <View style={styles.intentPill}>
+                          <Text style={styles.intentPillLabel}>Client:</Text>
+                          <Text style={styles.intentPillValue}>
+                            {parsedResult.interpretedIntent.clientName}
+                          </Text>
+                        </View>
+                      )}
+                      {parsedResult.interpretedIntent.videoNumber !== undefined && (
+                        <View style={styles.intentPill}>
+                          <Text style={styles.intentPillLabel}>Video:</Text>
+                          <Text style={styles.intentPillValue}>
+                            #{parsedResult.interpretedIntent.videoNumber}
+                          </Text>
+                        </View>
+                      )}
+                      {parsedResult.interpretedIntent.targetStatus && (
+                        <View style={styles.intentPill}>
+                          <Text style={styles.intentPillLabel}>Status:</Text>
+                          <Text style={[styles.intentPillValue, { color: THEME.colors.mintDark }]}>
+                            {parsedResult.interpretedIntent.targetStatus}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Candidate chips if ambiguous */}
+                  {parsedResult.isAmbiguous && (
+                    <View style={styles.candidatesSection}>
+                      <Text style={styles.candidatesPrompt}>Tap to select client:</Text>
+                      <View style={styles.candidatesRow}>
+                        {clients.map((c) => (
+                          <PressableScale
+                            key={c.id}
+                            style={styles.candidateChip}
+                            onPress={() => {
+                              const vNum = parsedResult.matchedVideoNumber || 1;
+                              handleProcessCommand(`${c.name}, video ${vNum} is done`);
+                            }}
+                            activeScale={0.94}
+                          >
+                            <Text style={styles.candidateChipText}>{c.name}</Text>
+                          </PressableScale>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Explicit Confirmation Buttons */}
+                  {parsedResult.requiresConfirmation && parsedResult.pendingAction && (
+                    <View style={styles.confirmActionRow}>
+                      <PressableScale
+                        style={styles.confirmBtn}
+                        onPress={handleConfirmAction}
+                        activeScale={0.94}
+                      >
+                        <Text style={styles.confirmBtnText}>Confirm Completion</Text>
+                      </PressableScale>
+
+                      <PressableScale
+                        style={styles.cancelBtn}
+                        onPress={handleCancelAction}
+                        activeScale={0.94}
+                      >
+                        <Text style={styles.cancelBtnText}>Cancel</Text>
+                      </PressableScale>
                     </View>
                   )}
                 </View>
-                <Text style={styles.transcriptText}>“{transcript}”</Text>
-              </View>
+              </GlassView>
             )}
 
-            {engineReady && (
-              <View style={styles.offlineReadyBadge}>
-                <Ionicons name="checkmark-circle" size={13} color={THEME.colors.mint} />
-                <Text style={styles.offlineReadyText}>100% Offline Speech Ready</Text>
-              </View>
-            )}
-
-            {isInitializingEngine && (
-              <View style={styles.offlineInitializingBadge}>
-                <ActivityIndicator size="small" color="#7C5CFC" style={{ marginRight: 6 }} />
-                <Text style={styles.offlineInitializingText}>Initializing Native Offline Engine...</Text>
-              </View>
-            )}
-
-            {!isRunningInExpoGo() && !engineReady && initError && (
-              <View style={styles.offlineErrorBadge}>
-                <Ionicons name="alert-circle" size={13} color="#FF5E7E" />
-                <Text style={styles.offlineErrorBadgeText}>Speech Engine Setup Required</Text>
-              </View>
-            )}
-
-            {/* Diagnostic Card shown when engine initialization failed in standalone/dev builds */}
-            {!isRunningInExpoGo() && !engineReady && initError && (
-              <View style={styles.errorDiagnosticBox}>
-                <View style={styles.errorDiagHeader}>
-                  <Ionicons name="warning-outline" size={16} color="#FF5E7E" />
-                  <Text style={styles.errorDiagTitle}>Initialization Diagnostic</Text>
-                </View>
-                <Text style={styles.errorDiagMessage}>{initError}</Text>
-
-                <View style={styles.diagButtonsRow}>
-                  <TouchableOpacity
-                    style={styles.retryButton}
-                    onPress={initializeEngineFlow}
-                    activeOpacity={0.8}
+            {/* Quick Example Chips */}
+            <View style={styles.examplesSection}>
+              <Text style={styles.examplesLabel}>TRY SAYING OR TYPING</Text>
+              <View style={styles.chipsWrap}>
+                {EXAMPLE_CHIPS.map((chip, idx) => (
+                  <PressableScale
+                    key={idx}
+                    style={styles.exampleChip}
+                    onPress={() => handleSelectExampleChip(chip)}
+                    activeScale={0.95}
                   >
-                    <Ionicons name="refresh" size={14} color="#FFFFFF" />
-                    <Text style={styles.retryButtonText}>Retry Initialization</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.repairButton}
-                    onPress={handleRepairOrRedownload}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="cloud-download-outline" size={14} color="#7C5CFC" />
-                    <Text style={styles.repairButtonText}>Re-download Model</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {fileChecks && fileChecks.length > 0 && (
-                  <TouchableOpacity
-                    style={styles.toggleDiagBtn}
-                    onPress={() => setShowDiagnostics(!showDiagnostics)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.toggleDiagText}>
-                      {showDiagnostics ? '▲ Hide Model Files Status' : '▼ Inspect Model Files on Disk'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                {showDiagnostics && fileChecks && (
-                  <View style={styles.fileDetailsList}>
-                    {fileChecks.map((f, i) => (
-                      <View key={i} style={styles.fileDetailItem}>
-                        <Ionicons
-                          name={f.exists && f.actualBytes >= f.expectedMinBytes ? 'checkmark-circle' : 'close-circle'}
-                          size={14}
-                          color={f.exists && f.actualBytes >= f.expectedMinBytes ? THEME.colors.mint : '#FF5E7E'}
-                        />
-                        <View style={{ flex: 1, marginLeft: 6 }}>
-                          <Text style={styles.fileDetailName} numberOfLines={1}>{f.name}</Text>
-                          <Text style={styles.fileDetailSub}>
-                            {f.exists
-                              ? `${(f.actualBytes / (1024 * 1024)).toFixed(2)} MB (Present)`
-                              : 'Missing on disk'}
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
+                    <Ionicons
+                      name="chatbubble-ellipses-outline"
+                      size={13}
+                      color={THEME.colors.purple}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.exampleChipText}>{chip}</Text>
+                  </PressableScale>
+                ))}
               </View>
-            )}
+            </View>
           </ScrollView>
 
-          {/* Bottom Anchored Typed Command Input */}
-          <View style={[styles.bottomInputSection, { paddingBottom: Math.max(insets.bottom, 12) + 6 }]}>
-            <Text style={styles.typePrompt}>Or type your command:</Text>
-            <View style={styles.inputRow}>
+          {/* Bottom Typed Fallback Bar */}
+          <GlassView
+            style={[styles.bottomInputBar, { paddingBottom: Math.max(insets.bottom, 12) }]}
+            intensity={40}
+            borderRadius={0}
+            borderWidth={0}
+            borderColor="transparent"
+          >
+            <View style={styles.inputInner}>
               <TextInput
                 style={styles.textInput}
-                placeholder="e.g. Rahul, video 5 is done"
+                placeholder="Or type a command (e.g. Hardik, video 5 is done)"
                 placeholderTextColor={THEME.colors.textMuted}
-                value={typedInput}
-                onChangeText={setTypedInput}
+                value={typedCommand}
+                onChangeText={setTypedCommand}
                 onSubmitEditing={handleSendTypedCommand}
                 returnKeyType="send"
               />
-              <TouchableOpacity
+              <PressableScale
                 style={[
                   styles.sendButton,
-                  typedInput.trim().length > 0 ? styles.sendButtonActive : styles.sendButtonDisabled,
+                  !typedCommand.trim() && styles.sendButtonDisabled,
                 ]}
                 onPress={handleSendTypedCommand}
-                disabled={typedInput.trim().length === 0}
-                activeOpacity={0.8}
+                disabled={!typedCommand.trim()}
+                activeScale={0.92}
+                accessibilityRole="button"
+                accessibilityLabel="Send typed command"
               >
-                <Ionicons
-                  name="arrow-up"
-                  size={20}
-                  color={typedInput.trim().length > 0 ? '#FFFFFF' : THEME.colors.textMuted}
-                />
-              </TouchableOpacity>
+                <Ionicons name="send" size={18} color="#FFFFFF" />
+              </PressableScale>
             </View>
-          </View>
+          </GlassView>
         </KeyboardAvoidingView>
       </View>
     </Modal>
@@ -790,7 +774,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: '#F0EBF8',
+    backgroundColor: '#F0EBF8', // A Note signature lavender backdrop
   },
   topHeader: {
     flexDirection: 'row',
@@ -800,516 +784,333 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.95)',
     shadowColor: THEME.colors.shadowColor,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
     shadowRadius: 6,
-    elevation: 3,
+    elevation: 2,
+  },
+  headerTitleGroup: {
+    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
     color: THEME.colors.textNavy,
-    letterSpacing: -0.3,
   },
-  keyboardAvoidingContainer: {
+  engineBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  engineDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 5,
+  },
+  engineBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: THEME.colors.textMuted,
+  },
+  contentAvoidView: {
     flex: 1,
-    justifyContent: 'space-between',
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    paddingTop: 10,
-    paddingBottom: 20,
+    paddingHorizontal: 18,
+    paddingBottom: 24,
   },
-  instructionBox: {
+  statusPillContainer: {
     alignItems: 'center',
+    marginTop: 8,
     marginBottom: 16,
   },
-  instructionMain: {
-    fontSize: 15,
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderWidth: 1.5,
+    shadowColor: THEME.colors.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  statusPillText: {
+    fontSize: 12,
     fontWeight: '700',
-    color: THEME.colors.textNavy,
-    textAlign: 'center',
+  },
+  visualizerGlassCard: {
+    marginBottom: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.82)',
+  },
+  visualizerInner: {
+    alignItems: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+  },
+  waveformContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 54,
+    marginBottom: 20,
+  },
+  waveBar: {
+    width: 8,
+    height: 48,
+    borderRadius: 4,
+    marginHorizontal: 5,
+  },
+  micButtonContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  micButton: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 6,
+  },
+  micPrompt: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: THEME.colors.textMuted,
+  },
+  transcriptCard: {
+    marginBottom: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
+  transcriptInner: {
+    padding: 16,
+  },
+  transcriptLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: THEME.colors.purple,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     marginBottom: 4,
   },
-  instructionSub: {
-    fontSize: 12,
-    color: THEME.colors.textMuted,
-    textAlign: 'center',
+  finalTranscriptText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: THEME.colors.textNavy,
+    lineHeight: 22,
   },
-  chipsRow: {
+  interimTranscriptText: {
+    fontSize: 15,
+    fontStyle: 'italic',
+    color: THEME.colors.textMuted,
+    lineHeight: 22,
+  },
+  intentCard: {
+    marginBottom: 16,
+  },
+  intentCardSuccess: {
+    backgroundColor: 'rgba(240, 253, 248, 0.92)',
+  },
+  intentCardClarify: {
+    backgroundColor: 'rgba(255, 251, 240, 0.92)',
+  },
+  intentCardConfirm: {
+    backgroundColor: 'rgba(255, 248, 240, 0.92)',
+  },
+  intentInner: {
+    padding: 16,
+  },
+  intentHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  intentHeaderTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: THEME.colors.textNavy,
+    marginLeft: 6,
+  },
+  intentDescription: {
+    fontSize: 13,
+    color: THEME.colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  intentPillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    justifyContent: 'center',
-    marginBottom: 28,
+    marginBottom: 8,
+  },
+  intentPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.06)',
+  },
+  intentPillLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: THEME.colors.textMuted,
+    marginRight: 4,
+  },
+  intentPillValue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: THEME.colors.textNavy,
+  },
+  candidatesSection: {
+    marginTop: 8,
+  },
+  candidatesPrompt: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.colors.textMuted,
+    marginBottom: 6,
+  },
+  candidatesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  candidateChip: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: THEME.colors.purple,
+  },
+  candidateChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: THEME.colors.purple,
+  },
+  confirmActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  confirmBtn: {
+    flex: 1,
+    backgroundColor: THEME.colors.mint,
+    paddingVertical: 10,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  confirmBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  cancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: THEME.colors.textMuted,
+  },
+  examplesSection: {
+    marginTop: 8,
+  },
+  examplesLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: THEME.colors.textMuted,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  chipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   exampleChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     paddingVertical: 7,
     paddingHorizontal: 12,
-    borderRadius: 999,
-    gap: 6,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.9)',
-    shadowColor: THEME.colors.shadowColor,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  chipText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: THEME.colors.textNavy,
-  },
-  micCenterContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 18,
-  },
-  pulseRing: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  micButton: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: THEME.colors.shadowColor,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  micButtonIdle: {
-    backgroundColor: THEME.colors.mint,
-  },
-  micButtonListening: {
-    backgroundColor: '#7C5CFC',
-  },
-  waveContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    height: 48,
-    marginTop: 14,
-  },
-  waveBar: {
-    width: 6,
-    borderRadius: 3,
-  },
-  statusCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginTop: 12,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.9)',
-    shadowColor: THEME.colors.shadowColor,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  retryMicButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginTop: 10,
-    borderWidth: 1.5,
-    borderColor: '#7C5CFC',
-    shadowColor: THEME.colors.shadowColor,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  retryMicText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#7C5CFC',
-  },
-  transcriptBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginTop: 12,
-    width: '100%',
-    borderWidth: 1,
-    borderColor: 'rgba(124, 92, 252, 0.25)',
-    shadowColor: THEME.colors.shadowColor,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  transcriptHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-    gap: 6,
-  },
-  transcriptLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: THEME.colors.textMuted,
-  },
-  transcriptText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: THEME.colors.textNavy,
-    lineHeight: 20,
-  },
-  liveIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 201, 167, 0.15)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 6,
-    gap: 4,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: THEME.colors.mint,
-  },
-  liveText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: THEME.colors.mint,
-    letterSpacing: 0.5,
-  },
-  bottomInputSection: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.95)',
     shadowColor: THEME.colors.shadowColor,
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  typePrompt: {
-    fontSize: 11,
+  exampleChipText: {
+    fontSize: 12,
     fontWeight: '600',
-    color: THEME.colors.textMuted,
-    marginBottom: 8,
+    color: THEME.colors.textPrimary,
   },
-  inputRow: {
+  bottomInputBar: {
+    borderTopWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
+  inputInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
   },
   textInput: {
     flex: 1,
-    height: 46,
-    backgroundColor: '#F7F3FC',
-    borderRadius: 23,
+    height: 44,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
     paddingHorizontal: 16,
     fontSize: 13,
     color: THEME.colors.textNavy,
     borderWidth: 1,
-    borderColor: '#E8E1F3',
+    borderColor: 'rgba(0, 0, 0, 0.06)',
   },
   sendButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
+    backgroundColor: THEME.colors.purple,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  sendButtonActive: {
-    backgroundColor: THEME.colors.mint,
-    shadowColor: THEME.colors.mint,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#EBE5F5',
-  },
-  modelCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    width: '100%',
-    marginBottom: 20,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.95)',
-    shadowColor: THEME.colors.shadowColor,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  modelHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  modelBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0EBF8',
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    gap: 4,
-  },
-  modelBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#7C5CFC',
-    letterSpacing: 0.5,
-  },
-  modelSizeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: THEME.colors.textMuted,
-  },
-  modelTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: THEME.colors.textNavy,
-    marginBottom: 4,
-  },
-  modelSubtitle: {
-    fontSize: 11,
-    color: THEME.colors.textMuted,
-    lineHeight: 16,
-    marginBottom: 12,
-  },
-  downloadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#7C5CFC',
-    borderRadius: 14,
-    paddingVertical: 12,
-    gap: 8,
-    shadowColor: '#7C5CFC',
-    shadowOffset: { width: 0, height: 3 },
+    marginLeft: 8,
+    shadowColor: THEME.colors.purple,
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
     elevation: 3,
   },
-  downloadButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  downloadContainer: {
-    marginTop: 4,
-  },
-  progressBarBg: {
-    height: 8,
-    backgroundColor: '#EBE5F5',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 6,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: THEME.colors.mint,
-    borderRadius: 4,
-  },
-  progressRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  progressStatusText: {
-    fontSize: 11,
-    color: THEME.colors.textMuted,
-    flex: 1,
-  },
-  progressPercentText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: THEME.colors.textNavy,
-    marginLeft: 8,
-  },
-  offlineReadyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 201, 167, 0.12)',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    marginTop: 8,
-    gap: 5,
-  },
-  offlineReadyText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: THEME.colors.textNavy,
-  },
-  offlineInitializingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(124, 92, 252, 0.12)',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    marginTop: 8,
-  },
-  offlineInitializingText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#7C5CFC',
-  },
-  offlineErrorBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 94, 126, 0.12)',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    marginTop: 8,
-    gap: 5,
-  },
-  offlineErrorBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FF5E7E',
-  },
-  errorDiagnosticBox: {
-    width: '100%',
-    backgroundColor: '#FFF5F7',
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#FFD4DD',
-    padding: 14,
-    marginTop: 12,
-  },
-  errorDiagHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-    gap: 6,
-  },
-  errorDiagTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FF5E7E',
-  },
-  errorDiagMessage: {
-    fontSize: 12,
-    color: THEME.colors.textNavy,
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  diagButtonsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  retryButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#7C5CFC',
-    borderRadius: 10,
-    paddingVertical: 9,
-    gap: 6,
-  },
-  retryButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  repairButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: 'rgba(124, 92, 252, 0.3)',
-    borderRadius: 10,
-    paddingVertical: 9,
-    gap: 6,
-  },
-  repairButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#7C5CFC',
-  },
-  toggleDiagBtn: {
-    marginTop: 10,
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  toggleDiagText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: THEME.colors.textMuted,
-  },
-  fileDetailsList: {
-    marginTop: 8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 10,
-    gap: 6,
-  },
-  fileDetailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  fileDetailName: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: THEME.colors.textNavy,
-  },
-  fileDetailSub: {
-    fontSize: 10,
-    color: THEME.colors.textMuted,
+  sendButtonDisabled: {
+    backgroundColor: THEME.colors.border,
+    shadowOpacity: 0,
+    elevation: 0,
   },
 });
-

@@ -80,8 +80,28 @@ function getStorageDirectory(): string {
 }
 
 /**
+ * Resolves the appropriate Apple Uniform Type Identifier (UTI) for iOS sharing.
+ */
+export function resolveAppleUTI(mimeType: string, fileName: string): string {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith('.pdf') || mimeType === 'application/pdf') {
+    return 'com.adobe.pdf';
+  }
+  if (
+    lower.endsWith('.xlsx') ||
+    mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ) {
+    return 'org.openxmlformats.spreadsheetml.sheet';
+  }
+  if (lower.endsWith('.json') || mimeType === 'application/json') {
+    return 'public.json';
+  }
+  return 'public.data';
+}
+
+/**
  * Verifies that a generated file exists on disk and is non-empty,
- * then opens Android's system share sheet for the actual file URI.
+ * then opens the system share sheet with appropriate MIME and Apple UTI.
  */
 async function verifyAndShareFile(
   fileUri: string,
@@ -96,21 +116,22 @@ async function verifyAndShareFile(
 
   // 2. Check if sharing is supported on this platform
   const isAvailable = await Sharing.isAvailableAsync();
-  if (!isAvailable) {
-    throw new Error(`System sharing is not available. File is saved at: ${fileUri}`);
+  if (isAvailable) {
+    const uti = resolveAppleUTI(mimeType, fileName);
+    // 3. Open the system share sheet with local file URI, Android MIME type, and iOS UTI
+    await Sharing.shareAsync(fileUri, {
+      mimeType,
+      dialogTitle: `Export: ${fileName}`,
+      UTI: uti,
+    });
   }
-
-  // 3. Open the Android system share sheet with the actual local file URI
-  await Sharing.shareAsync(fileUri, {
-    mimeType,
-    dialogTitle: `Export: ${fileName}`,
-    UTI: mimeType,
-  });
 
   const sizeKb = Math.max(1, Math.round(info.size / 1024));
   return {
     success: true,
-    message: `Generated and shared ${fileName} (${sizeKb} KB) successfully!`,
+    message: isAvailable
+      ? `Generated and shared ${fileName} (${sizeKb} KB) successfully!`
+      : `Generated ${fileName} (${sizeKb} KB) successfully and saved to device storage!`,
     fileUri,
     fileSize: info.size,
   };

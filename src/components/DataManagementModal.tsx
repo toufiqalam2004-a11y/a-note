@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
 import { deleteAllAppData } from '../services/db';
+import { PressableScale } from './PressableScale';
 
 interface DataManagementModalProps {
   visible: boolean;
@@ -107,13 +108,16 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
               <Text style={styles.title}>Data Management</Text>
               <Text style={styles.subtitle}>Settings &bull; Backup &bull; Clean Slate</Text>
             </View>
-            <TouchableOpacity
+            <PressableScale
               style={styles.closeBtn}
               onPress={handleSafeBack}
+              activeScale={0.88}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Close Data Management"
             >
               <Ionicons name="close" size={22} color={THEME.colors.textMuted} />
-            </TouchableOpacity>
+            </PressableScale>
           </View>
 
           <ScrollView
@@ -134,20 +138,22 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
                 </View>
               </View>
 
-              <TouchableOpacity
+              <PressableScale
                 style={styles.actionRow}
                 onPress={() => {
                   onClose();
                   onOpenBackupRestore();
                 }}
-                activeOpacity={0.75}
+                activeScale={0.96}
+                accessibilityRole="button"
+                accessibilityLabel="Open Backup and Restore Center"
               >
                 <View style={styles.actionRowLeft}>
                   <Ionicons name="save-outline" size={18} color={THEME.colors.purple} />
                   <Text style={styles.actionRowText}>Open Backup &amp; Restore Center</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
-              </TouchableOpacity>
+              </PressableScale>
             </View>
 
             {/* 2. Privacy & Storage Note */}
@@ -173,14 +179,16 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
               </View>
 
               {!showDeleteConfirm ? (
-                <TouchableOpacity
+                <PressableScale
                   style={styles.deleteInitBtn}
                   onPress={() => setShowDeleteConfirm(true)}
-                  activeOpacity={0.8}
+                  activeScale={0.95}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete All App Data"
                 >
                   <Ionicons name="trash-bin-outline" size={16} color="#FF5E7E" />
                   <Text style={styles.deleteInitBtnText}>Delete All App Data</Text>
-                </TouchableOpacity>
+                </PressableScale>
               ) : (
                 <View style={styles.confirmBox}>
                   <View style={styles.warningAlert}>

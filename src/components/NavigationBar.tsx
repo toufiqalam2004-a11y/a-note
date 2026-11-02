@@ -1,8 +1,12 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME } from '../constants/theme';
+import { PressableScale } from './PressableScale';
+import { SPRING_PRESETS } from '../utils/motion';
+
+import { GlassView } from './GlassView';
 
 export type TabKey = 'home' | 'clients' | 'voice' | 'reports' | 'more';
 
@@ -20,48 +24,91 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
   isVoiceActive = false,
 }) => {
   const insets = useSafeAreaInsets();
-  // Ensure the navigation bar is positioned strictly above the Android system navigation bar
-  // (3-button navigation ~48dp, gesture navigation ~16-24dp, or minimum 12dp)
   const bottomInset = Math.max(insets.bottom, 12);
 
   const isHomeActive = currentTab === 'home';
   const isClientsActive = currentTab === 'clients';
   const isVoiceSelected = isVoiceActive || currentTab === 'voice';
 
+  // Micro spring bounce on tab icons when selected
+  const homeIconScale = useRef(new Animated.Value(1)).current;
+  const clientsIconScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (isHomeActive) {
+      Animated.sequence([
+        Animated.spring(homeIconScale, {
+          toValue: 1.15,
+          ...SPRING_PRESETS.bouncy,
+        }),
+        Animated.spring(homeIconScale, {
+          toValue: 1,
+          ...SPRING_PRESETS.snappy,
+        }),
+      ]).start();
+    }
+  }, [isHomeActive, homeIconScale]);
+
+  useEffect(() => {
+    if (isClientsActive) {
+      Animated.sequence([
+        Animated.spring(clientsIconScale, {
+          toValue: 1.15,
+          ...SPRING_PRESETS.bouncy,
+        }),
+        Animated.spring(clientsIconScale, {
+          toValue: 1,
+          ...SPRING_PRESETS.snappy,
+        }),
+      ]).start();
+    }
+  }, [isClientsActive, clientsIconScale]);
+
   return (
     <View style={[styles.navWrapper, { paddingBottom: bottomInset + 6 }]}>
-      <View style={styles.navBar}>
+      <GlassView
+        style={styles.navBar}
+        intensity={55}
+        borderRadius={9999}
+        borderWidth={1.5}
+        borderColor="rgba(255, 255, 255, 0.85)"
+        backgroundColor="rgba(255, 255, 255, 0.82)"
+      >
         {/* 1. LEFT TAB: Home */}
-        <TouchableOpacity
-          style={[
-            styles.sideTabButton,
-            isHomeActive ? styles.tabButtonActiveHome : styles.tabButtonInactive,
-          ]}
-          onPress={() => onTabChange('home')}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel="Home Dashboard"
-          accessibilityState={{ selected: isHomeActive }}
-        >
-          <Ionicons
-            name={isHomeActive ? 'home' : 'home-outline'}
-            size={20}
-            color={isHomeActive ? THEME.colors.mint : THEME.colors.textMuted}
-          />
-          <Text
+        <View style={styles.sideTabContainer}>
+          <PressableScale
             style={[
-              styles.tabLabel,
-              isHomeActive ? styles.tabLabelActiveHome : styles.tabLabelInactive,
+              styles.sideTabButton,
+              isHomeActive ? styles.tabButtonActiveHome : styles.tabButtonInactive,
             ]}
-            numberOfLines={1}
+            onPress={() => onTabChange('home')}
+            activeScale={0.94}
+            accessibilityRole="button"
+            accessibilityLabel="Home Dashboard"
+            accessibilityState={{ selected: isHomeActive }}
           >
-            Home
-          </Text>
-        </TouchableOpacity>
+            <Animated.View style={{ transform: [{ scale: homeIconScale }] }}>
+              <Ionicons
+                name={isHomeActive ? 'home' : 'home-outline'}
+                size={20}
+                color={isHomeActive ? THEME.colors.mint : THEME.colors.textMuted}
+              />
+            </Animated.View>
+            <Text
+              style={[
+                styles.tabLabel,
+                isHomeActive ? styles.tabLabelActiveHome : styles.tabLabelInactive,
+              ]}
+              numberOfLines={1}
+            >
+              Home
+            </Text>
+          </PressableScale>
+        </View>
 
-        {/* 2. CENTER TAB: Prominent Circular Voice Button (Visually Larger) */}
+        {/* 2. CENTER TAB: Prominent Circular Voice Button with tactile spring */}
         <View style={styles.centerVoiceContainer}>
-          <TouchableOpacity
+          <PressableScale
             style={[
               styles.centerVoiceButton,
               isVoiceSelected
@@ -75,7 +122,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                 onTabChange('voice');
               }
             }}
-            activeOpacity={0.82}
+            activeScale={0.90}
             accessibilityRole="button"
             accessibilityLabel="Voice Control Assistant"
             accessibilityState={{ selected: isVoiceSelected }}
@@ -92,7 +139,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                 color={isVoiceSelected ? '#FFFFFF' : THEME.colors.mint}
               />
             </View>
-          </TouchableOpacity>
+          </PressableScale>
           <Text
             style={[
               styles.voiceLabel,
@@ -104,37 +151,41 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
         </View>
 
         {/* 3. RIGHT TAB: Clients */}
-        <TouchableOpacity
-          style={[
-            styles.sideTabButton,
-            isClientsActive
-              ? styles.tabButtonActiveClients
-              : styles.tabButtonInactiveClients,
-          ]}
-          onPress={() => onTabChange('clients')}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel="Clients Directory"
-          accessibilityState={{ selected: isClientsActive }}
-        >
-          <Ionicons
-            name={isClientsActive ? 'people' : 'people-outline'}
-            size={20}
-            color={isClientsActive ? THEME.colors.purple : '#8E8AAB'}
-          />
-          <Text
+        <View style={styles.sideTabContainer}>
+          <PressableScale
             style={[
-              styles.tabLabel,
+              styles.sideTabButton,
               isClientsActive
-                ? styles.tabLabelActiveClients
-                : styles.tabLabelInactiveClientsText,
+                ? styles.tabButtonActiveClients
+                : styles.tabButtonInactiveClients,
             ]}
-            numberOfLines={1}
+            onPress={() => onTabChange('clients')}
+            activeScale={0.94}
+            accessibilityRole="button"
+            accessibilityLabel="Clients Directory"
+            accessibilityState={{ selected: isClientsActive }}
           >
-            Clients
-          </Text>
-        </TouchableOpacity>
-      </View>
+            <Animated.View style={{ transform: [{ scale: clientsIconScale }] }}>
+              <Ionicons
+                name={isClientsActive ? 'people' : 'people-outline'}
+                size={20}
+                color={isClientsActive ? THEME.colors.purple : '#8E8AAB'}
+              />
+            </Animated.View>
+            <Text
+              style={[
+                styles.tabLabel,
+                isClientsActive
+                  ? styles.tabLabelActiveClients
+                  : styles.tabLabelInactiveClientsText,
+              ]}
+              numberOfLines={1}
+            >
+              Clients
+            </Text>
+          </PressableScale>
+        </View>
+      </GlassView>
     </View>
   );
 };
@@ -151,8 +202,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 9999,
     paddingHorizontal: 8,
     paddingVertical: 6,
     width: '100%',
@@ -166,9 +215,11 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
-  // Side tabs: Home (Left) & Clients (Right)
-  sideTabButton: {
+  sideTabContainer: {
     flex: 1,
+    marginHorizontal: 4,
+  },
+  sideTabButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -176,7 +227,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 9999,
     minHeight: 46,
-    marginHorizontal: 4,
     gap: 6,
   },
   tabButtonInactive: {
@@ -209,12 +259,11 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 2,
   },
-  // Center Voice Tab: Visually Larger & Prominent
   centerVoiceContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 6,
-    top: -4, // Subtle elevated lift
+    top: -4,
   },
   centerVoiceButton: {
     width: 52,
@@ -263,7 +312,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: THEME.colors.mintDark,
   },
-  // Side Tab Labels
   tabLabel: {
     fontSize: 13,
   },

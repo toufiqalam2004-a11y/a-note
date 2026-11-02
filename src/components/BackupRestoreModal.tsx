@@ -20,6 +20,7 @@ import {
   restoreBackupData,
   BackupPayload,
 } from '../services/backupService';
+import { PressableScale } from './PressableScale';
 
 interface BackupRestoreModalProps {
   visible: boolean;
@@ -62,7 +63,7 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
   const handleSelectFileToRestore = async () => {
     try {
       const pickResult = await DocumentPicker.getDocumentAsync({
-        type: ['application/json', 'text/json', '*/*'],
+        type: ['application/json', 'text/json', 'public.json', 'public.data', '*/*'],
         copyToCacheDirectory: true,
       });
 
@@ -162,13 +163,16 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
               <Text style={styles.headerTitle}>Local Backup &amp; Restore</Text>
               <Text style={styles.headerSubtitle}>100% Offline &bull; No Cloud Required</Text>
             </View>
-            <TouchableOpacity
+            <PressableScale
               onPress={onClose}
               style={styles.closeBtn}
+              activeScale={0.88}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Close Backup and Restore Modal"
             >
               <Ionicons name="close" size={22} color={THEME.colors.textMuted} />
-            </TouchableOpacity>
+            </PressableScale>
           </View>
 
           <ScrollView
@@ -215,10 +219,12 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
                 </Text>
 
                 {/* Option 1: Merge (Recommended) */}
-                <TouchableOpacity
+                <PressableScale
                   style={styles.btnMerge}
                   onPress={() => handleConfirmRestore('merge')}
-                  activeOpacity={0.8}
+                  activeScale={0.94}
+                  accessibilityRole="button"
+                  accessibilityLabel="Merge with Existing Data"
                 >
                   <View style={styles.btnMergeIcon}>
                     <Ionicons name="git-merge-outline" size={18} color="#FFFFFF" />
@@ -227,7 +233,7 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
                     <Text style={styles.btnMergeTitle}>Merge with Existing Data</Text>
                     <Text style={styles.btnMergeSub}>Safe: Keeps current clients and adds missing records.</Text>
                   </View>
-                </TouchableOpacity>
+                </PressableScale>
 
                 {/* Option 2: Replace */}
                 <TouchableOpacity
@@ -281,15 +287,17 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
                 </View>
               </View>
 
-              <TouchableOpacity
+              <PressableScale
                 style={styles.actionBtnMint}
                 onPress={handleCreateBackup}
                 disabled={isProcessing}
-                activeOpacity={0.85}
+                activeScale={0.94}
+                accessibilityRole="button"
+                accessibilityLabel="Export and save local backup"
               >
                 <Ionicons name="download-outline" size={18} color="#FFFFFF" />
                 <Text style={styles.actionBtnTextWhite}>Export &amp; Save Backup</Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
 
             {/* Section 2: Restore from Backup */}
@@ -306,15 +314,17 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
                 </View>
               </View>
 
-              <TouchableOpacity
+              <PressableScale
                 style={styles.actionBtnPurple}
                 onPress={handleSelectFileToRestore}
                 disabled={isProcessing}
-                activeOpacity={0.85}
+                activeScale={0.94}
+                accessibilityRole="button"
+                accessibilityLabel="Select backup file to restore"
               >
                 <Ionicons name="folder-open-outline" size={18} color={THEME.colors.purpleDark} />
                 <Text style={styles.actionBtnTextPurple}>Select Backup File</Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
 
             {/* Privacy & Safety Guarantee */}

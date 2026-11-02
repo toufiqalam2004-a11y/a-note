@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { THEME } from '../constants/theme';
+import { PressableScale } from './PressableScale';
 
 export const INTRO_STORAGE_KEY = '@anote_has_completed_intro';
 
@@ -189,10 +190,10 @@ export const FirstLaunchIntro: React.FC<FirstLaunchIntroProps> = ({
 
           {/* Bottom Action Footer */}
           <View style={[styles.footerContainer, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
-            <TouchableOpacity
+            <PressableScale
               style={styles.getStartedButton}
               onPress={handlePressGetStarted}
-              activeOpacity={0.88}
+              activeScale={0.96}
               accessibilityRole="button"
               accessibilityLabel="Get Started with A Note"
             >
@@ -200,7 +201,7 @@ export const FirstLaunchIntro: React.FC<FirstLaunchIntroProps> = ({
               <View style={styles.arrowCircle}>
                 <Ionicons name="arrow-forward" size={18} color="#00D287" />
               </View>
-            </TouchableOpacity>
+            </PressableScale>
             <Text style={styles.footerSubtext}>
               All data is saved locally on your phone &bull; 100% private
             </Text>

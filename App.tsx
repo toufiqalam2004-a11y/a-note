@@ -47,6 +47,7 @@ import { FirstLaunchIntro, INTRO_STORAGE_KEY } from './src/components/FirstLaunc
 import { BackupRestoreModal } from './src/components/BackupRestoreModal';
 import { AppMenuModal } from './src/components/AppMenuModal';
 import { DataManagementModal } from './src/components/DataManagementModal';
+import { PressableScale } from './src/components/PressableScale';
 
 export default function App() {
   const [clients, setClients] = useState<ClientWithVideos[]>([]);
@@ -555,14 +556,16 @@ export default function App() {
                             Track client video delivery quotas, reconcile advance payments, and generate official PDF/Excel reports offline.
                           </Text>
 
-                          <TouchableOpacity
+                          <PressableScale
                             style={styles.addFirstClientButton}
                             onPress={() => setIsAddClientVisible(true)}
-                            activeOpacity={0.85}
+                            activeScale={0.95}
+                            accessibilityRole="button"
+                            accessibilityLabel="Add Your First Client"
                           >
                             <Ionicons name="add-circle" size={20} color="#FFFFFF" />
                             <Text style={styles.addFirstClientText}>Add Your First Client</Text>
-                          </TouchableOpacity>
+                          </PressableScale>
 
                           <TouchableOpacity
                             style={styles.howItWorksButtonSecondary}
@@ -590,10 +593,12 @@ export default function App() {
 
                         {/* Primary Mint Green 3D "+ Add Client" Button matching Screen 1 */}
                         <View style={styles.addClientBtnContainer}>
-                          <TouchableOpacity
+                          <PressableScale
                             style={styles.largeMintAddButton}
                             onPress={() => setIsAddClientVisible(true)}
-                            activeOpacity={0.85}
+                            activeScale={0.96}
+                            accessibilityRole="button"
+                            accessibilityLabel="Add Client"
                           >
                             <View style={styles.addBtnInnerRow}>
                               <Ionicons name="add" size={22} color="#FFFFFF" />
@@ -602,7 +607,7 @@ export default function App() {
                             <View style={styles.arrowCircleBadge}>
                               <Ionicons name="arrow-forward" size={16} color={THEME.colors.mint} />
                             </View>
-                          </TouchableOpacity>
+                          </PressableScale>
                         </View>
 
                         {/* Recent Clients Section matching Screen 1 */}
@@ -640,11 +645,13 @@ export default function App() {
                         const percent = total > 0 ? Math.round((done / total) * 100) : 0;
 
                         return (
-                          <TouchableOpacity
+                          <PressableScale
                             key={c.id}
                             style={styles.clientDirectoryCard}
                             onPress={() => setSelectedClient(c)}
-                            activeOpacity={0.8}
+                            activeScale={0.98}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${c.name}, ${done} of ${total} videos completed`}
                           >
                             <View style={styles.clientCardHeader}>
                               <View style={styles.clientAvatarPurple}>
@@ -677,7 +684,7 @@ export default function App() {
                                 Unused: {formatCurrency(c.calculations.unusedBudget)}
                               </Text>
                             </View>
-                          </TouchableOpacity>
+                          </PressableScale>
                         );
                       })
                     )}

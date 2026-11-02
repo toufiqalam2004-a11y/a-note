@@ -17,6 +17,7 @@ import { THEME } from '../constants/theme';
 import { formatCurrency } from '../utils/calculations';
 import { PREDEFINED_VIDEO_TYPES } from '../constants/videoTypes';
 import { ClientWithVideos } from '../types';
+import { PressableScale } from './PressableScale';
 
 interface AddClientModalProps {
   visible: boolean;
@@ -179,13 +180,16 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
                       : 'Set budget, rate, and video types'}
                   </Text>
                 </View>
-                <TouchableOpacity
+                <PressableScale
                   onPress={handleClose}
                   style={styles.closeBtn}
+                  activeScale={0.88}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close Client Modal"
                 >
                   <Ionicons name="close" size={20} color={THEME.colors.textNavy} />
-                </TouchableOpacity>
+                </PressableScale>
               </View>
 
               {/* Error prompt if any */}
@@ -307,14 +311,16 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
                     {allAvailableTypes.map((type) => {
                       const isSelected = selectedTypes.includes(type);
                       return (
-                        <TouchableOpacity
+                        <PressableScale
                           key={type}
                           style={[
                             styles.chip,
                             isSelected && styles.chipSelected,
                           ]}
                           onPress={() => handleToggleType(type)}
-                          activeOpacity={0.75}
+                          activeScale={0.92}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${type} category, ${isSelected ? 'selected' : 'not selected'}`}
                         >
                           <Ionicons
                             name={isSelected ? 'checkmark-circle' : 'add-circle-outline'}
@@ -330,20 +336,22 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
                           >
                             {type}
                           </Text>
-                        </TouchableOpacity>
+                        </PressableScale>
                       );
                     })}
 
                     {/* Custom Type Trigger Button */}
                     {!isAddingCustom ? (
-                      <TouchableOpacity
+                      <PressableScale
                         style={styles.customTypeTriggerBtn}
                         onPress={() => setIsAddingCustom(true)}
-                        activeOpacity={0.75}
+                        activeScale={0.93}
+                        accessibilityRole="button"
+                        accessibilityLabel="Add custom video type"
                       >
                         <Ionicons name="sparkles-outline" size={13} color={THEME.colors.purple} />
                         <Text style={styles.customTypeTriggerText}>+ Custom Type</Text>
-                      </TouchableOpacity>
+                      </PressableScale>
                     ) : null}
                   </View>
 
@@ -384,24 +392,28 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
 
               {/* Actions Footer */}
               <View style={styles.actionsRow}>
-                <TouchableOpacity
+                <PressableScale
                   style={styles.cancelButton}
                   onPress={handleClose}
-                  activeOpacity={0.7}
+                  activeScale={0.94}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel"
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
+                </PressableScale>
 
-                <TouchableOpacity
+                <PressableScale
                   style={styles.saveButton}
                   onPress={handleSave}
-                  activeOpacity={0.85}
+                  activeScale={0.94}
+                  accessibilityRole="button"
+                  accessibilityLabel={isEditing ? 'Save Changes' : 'Create Client'}
                 >
                   <Ionicons name="checkmark" size={18} color="#FFFFFF" />
                   <Text style={styles.saveButtonText}>
                     {isEditing ? 'Save Changes' : 'Create Client'}
                   </Text>
-                </TouchableOpacity>
+                </PressableScale>
               </View>
             </View>
           </KeyboardAvoidingView>

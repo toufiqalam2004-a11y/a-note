@@ -1,9 +1,25 @@
 import { ClientWithVideos, PendingVoiceAction } from '../types/index';
 
+export interface InterpretedIntent {
+  clientName?: string;
+  videoNumber?: number;
+  actionDescription: string;
+  targetStatus?: string;
+  currentStatus?: string;
+}
+
 export interface ParseResult {
   success: boolean;
   message: string;
-  actionType: 'ADD_CLIENT' | 'COMPLETE_VIDEO' | 'NAVIGATE' | 'QUERY' | 'UNKNOWN';
+  actionType:
+    | 'ADD_CLIENT'
+    | 'COMPLETE_VIDEO'
+    | 'NAVIGATE'
+    | 'QUERY'
+    | 'CLIENT_PROGRESS'
+    | 'SELECT_VIDEO'
+    | 'CLARIFICATION'
+    | 'UNKNOWN';
   targetScreen?: 'dashboard' | 'clients' | 'new_client';
   pendingAction?: PendingVoiceAction;
   isAmbiguous?: boolean;
@@ -11,6 +27,8 @@ export interface ParseResult {
   matchedClient?: ClientWithVideos;
   matchedVideoNumber?: number;
   alreadyCompleted?: boolean;
+  requiresConfirmation?: boolean;
+  interpretedIntent?: InterpretedIntent;
 }
 
 const NUMBER_WORDS: Record<string, number> = {
@@ -23,7 +41,6 @@ const NUMBER_WORDS: Record<string, number> = {
   third: 3,
   four: 4,
   fourth: 4,
-  for: 4, // speech-to-text homophone for "four"
   five: 5,
   fifth: 5,
   six: 6,
@@ -32,7 +49,6 @@ const NUMBER_WORDS: Record<string, number> = {
   seventh: 7,
   eight: 8,
   eighth: 8,
-  ate: 8, // speech-to-text homophone for "eight"
   nine: 9,
   ninth: 9,
   ten: 10,
@@ -119,7 +135,35 @@ export function wordsToNumber(text: string): number | null {
 }
 
 /**
- * Finds a client by name using case-insensitive and prefix/fuzzy matching.
+ * Normalizes speech recognition or typed command text.
+ * Strictly preserves ordinary natural-language meanings outside command contexts.
+ * Homophones are ONLY mapped in an unambiguous, explicitly specified video-number context.
+ */
+export function normalizeCommandText(raw: string): string {
+  let text = raw.trim().toLowerCase();
+  // Strip trailing punctuation
+  text = text.replace(/^[.,!?;:\s]+|[.,!?;:\s]+$/g, '');
+
+  // Normalize "video number 5", "video no. 5", "video no 5", "video #5" -> "video 5"
+  text = text.replace(/\bvideo\s+(?:number|no\.?|#)\s*([a-z0-9]+)/gi, 'video $1');
+  text = text.replace(/\bvideo\s*#\s*([a-z0-9]+)/gi, 'video $1');
+
+  // Handle homophone "ate" -> 8 ONLY in explicit video completion: "video ate is done/finished/completed"
+  text = text.replace(/\bvideo\s+ate\s+(is\s+)?(done|completed|finished|complete|finish)\b/gi, 'video 8 $1$2');
+
+  // Handle homophone "for" -> 4 ONLY when preceded by a client name in a completion command:
+  // e.g. "Hardik video for is done" -> "Hardik video 4 is done"
+  // (Prevents converting "video for Hardik is done" into "video 4 Hardik")
+  text = text.replace(/(\b[a-z0-9]+\s+)video\s+for\s+(is\s+)?(done|completed|finished|complete|finish)\b/gi, '$1video 4 $2$3');
+
+  // Handle homophones "to" / "too" -> 2 in explicit video completion
+  text = text.replace(/\bvideo\s+(?:to|too)\s+(is\s+)?(done|completed|finished|complete|finish)\b/gi, 'video 2 $1$2');
+
+  return text;
+}
+
+/**
+ * Finds a client by name using case-insensitive exact, prefix, and word boundary matching.
  */
 export function findMatchingClient(
   query: string,
@@ -134,15 +178,31 @@ export function findMatchingClient(
     return { client: null, isAmbiguous: false, candidates: [] };
   }
 
-  // Exact match first
+  // 1. Exact clean match
   const exact = clients.filter(
     (c) => c.name.toLowerCase().replace(/[^a-z0-9]/g, '') === cleanQuery
   );
   if (exact.length === 1) {
     return { client: exact[0], isAmbiguous: false, candidates: exact };
   }
+  if (exact.length > 1) {
+    return { client: null, isAmbiguous: true, candidates: exact };
+  }
 
-  // Partial / contains match
+  // 2. Prefix or whole-word match
+  const wordMatches = clients.filter((c) => {
+    const cTokens = c.name.toLowerCase().split(/[\s_-]+/);
+    return cTokens.some((tok) => tok === cleanQuery || tok.startsWith(cleanQuery));
+  });
+
+  if (wordMatches.length === 1) {
+    return { client: wordMatches[0], isAmbiguous: false, candidates: wordMatches };
+  }
+  if (wordMatches.length > 1) {
+    return { client: null, isAmbiguous: true, candidates: wordMatches };
+  }
+
+  // 3. Substring containment match
   const contains = clients.filter((c) => {
     const cName = c.name.toLowerCase().replace(/[^a-z0-9]/g, '');
     return cName.includes(cleanQuery) || cleanQuery.includes(cName);
@@ -151,7 +211,6 @@ export function findMatchingClient(
   if (contains.length === 1) {
     return { client: contains[0], isAmbiguous: false, candidates: contains };
   }
-
   if (contains.length > 1) {
     return { client: null, isAmbiguous: true, candidates: contains };
   }
@@ -160,29 +219,13 @@ export function findMatchingClient(
 }
 
 /**
- * Normalizes speech recognition or typed command text.
- */
-function normalizeCommandText(raw: string): string {
-  let text = raw.trim().toLowerCase();
-  // Strip trailing punctuation
-  text = text.replace(/^[.,!?;:\s]+|[.,!?;:\s]+$/g, '');
-
-  // Normalize "video number 5", "video no. 5", "video no 5", "video #5" -> "video 5"
-  text = text.replace(/\bvideo\s+(?:number|no\.?|#)\s*([a-z0-9]+)/gi, 'video $1');
-  text = text.replace(/\bvideo\s*#\s*([a-z0-9]+)/gi, 'video $1');
-
-  // Handle common speech recognition anomaly: "video for" when user said "video four"
-  text = text.replace(/\bvideo\s+for\s+(is\s+)?(done|completed|finished)/gi, 'video 4 $1$2');
-
-  return text;
-}
-
-/**
  * Parses user voice transcript against available clients and commands.
+ * Strictly separates recognition from execution. Never executes partials or mutates without client.
  */
 export function parseVoiceCommand(
   rawTranscript: string,
-  clients: ClientWithVideos[]
+  clients: ClientWithVideos[],
+  confidence?: number
 ): ParseResult {
   if (!rawTranscript || !rawTranscript.trim()) {
     return {
@@ -194,8 +237,46 @@ export function parseVoiceCommand(
 
   const lower = normalizeCommandText(rawTranscript);
 
-  // 1. Specific Client Navigation: "Show client Rahul", "Open client Rahul"
-  const showClientMatch = lower.match(/(?:show|open|view|go\s+to)\s+client\s+([^,]+)/i);
+  // Ambiguity check: detect multiple distinct video numbers in a single command
+  // e.g. "Hardik video 2 and 4 are done" or "Hardik video 2 or 3 is done"
+  const multiVideoMatch = lower.match(/\bvideo\s+([a-z0-9]+)\s*(?:and|or|to|,|&)\s*(?:video\s+)?([a-z0-9]+)/i);
+  if (multiVideoMatch) {
+    const v1 = wordsToNumber(multiVideoMatch[1]) || multiVideoMatch[1];
+    const v2 = wordsToNumber(multiVideoMatch[2]) || multiVideoMatch[2];
+    if (v1 !== v2) {
+      return {
+        success: false,
+        isAmbiguous: true,
+        ambiguityPrompt: `Multiple video numbers detected (Video ${v1} and Video ${v2}). Please specify a single video number to update.`,
+        message: `Multiple video numbers detected in command: "${rawTranscript.trim()}".`,
+        actionType: 'CLARIFICATION',
+      };
+    }
+  }
+
+  const separateVideoMatches = lower.match(/\bvideo\s+([a-z0-9]+)/gi);
+  if (separateVideoMatches && separateVideoMatches.length > 1) {
+    const resolvedNums = separateVideoMatches.map((m) => {
+      const numStr = m.replace(/^video\s+/i, '').trim();
+      return wordsToNumber(numStr) || numStr;
+    });
+    const uniqueNums = new Set(resolvedNums);
+    if (uniqueNums.size > 1) {
+      return {
+        success: false,
+        isAmbiguous: true,
+        ambiguityPrompt: `Multiple video numbers detected (${Array.from(uniqueNums).map((n) => `Video ${n}`).join(', ')}). Please specify one video at a time.`,
+        message: `Multiple video numbers detected in command: "${rawTranscript.trim()}".`,
+        actionType: 'CLARIFICATION',
+      };
+    }
+  }
+
+  // Confidence check: if confidence is below 0.25, require explicit confirmation
+  const isLowConfidence = typeof confidence === 'number' && confidence >= 0 && confidence < 0.25;
+
+  // 1. Specific Client Navigation: "Show client Rahul", "Open client Rahul", "View Rahul"
+  const showClientMatch = lower.match(/^(?:show|open|view|go\s+to)\s+client\s+([^,]+)/i);
   if (showClientMatch) {
     const rawTarget = showClientMatch[1].trim().replace(/[.,!?:;]/g, '');
     const match = findMatchingClient(rawTarget, clients);
@@ -214,17 +295,50 @@ export function parseVoiceCommand(
         isAmbiguous: true,
         ambiguityPrompt: `Multiple clients matched "${rawTarget}". Which one do you want to view? Candidates: ${match.candidates.map((c) => c.name).join(', ')}`,
         message: `Ambiguous client name "${rawTarget}".`,
-        actionType: 'QUERY',
+        actionType: 'CLARIFICATION',
       };
     }
   }
 
-  // 2. Navigation / Query commands
-  if (
-    lower === 'new client' ||
-    lower === 'add client' ||
-    lower === 'create client'
-  ) {
+  // 2. Client Progress Query: "Show Hardik's progress", "Hardik progress", "Hardik status", "Show progress for Hardik"
+  const progressMatch = lower.match(
+    /^(?:show\s+)?([a-zA-Z0-9\s]+?)['’]?s?\s+(?:progress|status|stats|analytics)$/i
+  ) || lower.match(
+    /^(?:show\s+)?(?:progress|status)\s+(?:of|for)\s+([a-zA-Z0-9\s]+)$/i
+  );
+
+  if (progressMatch) {
+    const candidateName = progressMatch[1].trim();
+    const match = findMatchingClient(candidateName, clients);
+    if (match.client) {
+      const c = match.client;
+      const pct = c.calculations.totalVideos > 0
+        ? Math.round((c.calculations.completedVideos / c.calculations.totalVideos) * 100)
+        : 0;
+      return {
+        success: true,
+        actionType: 'CLIENT_PROGRESS',
+        matchedClient: c,
+        message: `${c.name}'s Progress: ${c.calculations.completedVideos}/${c.calculations.totalVideos} videos completed (${pct}%). Pending work: ₹${c.calculations.remainingValue.toLocaleString('en-IN')}.`,
+        interpretedIntent: {
+          clientName: c.name,
+          actionDescription: `View progress for ${c.name}`,
+        },
+      };
+    }
+    if (match.isAmbiguous) {
+      return {
+        success: false,
+        isAmbiguous: true,
+        ambiguityPrompt: `Which client's progress? Candidates: ${match.candidates.map((c) => c.name).join(', ')}`,
+        message: `Ambiguous client name "${candidateName}".`,
+        actionType: 'CLARIFICATION',
+      };
+    }
+  }
+
+  // 3. Global Navigation commands
+  if (lower === 'new client' || lower === 'add client' || lower === 'create client') {
     return {
       success: true,
       message: 'Opening Add Client modal.',
@@ -281,7 +395,7 @@ export function parseVoiceCommand(
     };
   }
 
-  // 3. Add Client Command
+  // 4. Add Client Command
   // "Add client Rahul, rate 800, payment 10000"
   // "New client Amit budget 5000 rate 500"
   const addClientMatch = lower.match(/(?:add|new|create)\s+client\s+([^,]+)/i);
@@ -343,6 +457,7 @@ export function parseVoiceCommand(
       success: true,
       message: `Adding client ${clientName}: ₹${budget.toLocaleString('en-IN')} payment, ₹${rate}/video (${calculatedVideos} videos, ₹${unused} balance).`,
       actionType: 'ADD_CLIENT',
+      requiresConfirmation: true,
       pendingAction: {
         type: 'ADD_CLIENT',
         description: `Add client ${clientName} with payment ₹${budget.toLocaleString('en-IN')} at ₹${rate}/video (${calculatedVideos} videos)`,
@@ -353,173 +468,270 @@ export function parseVoiceCommand(
     };
   }
 
-  // 4. Complete Video Command:
-  // "Rahul, video five is done."
-  // "Rahul, video 5 is done."
-  // "Video five is done."
-  // "Video 5 is done."
-  // "Video 5 done for Rahul"
-  // "Rahul video 5 completed"
+  // 5. Completion Intent Keywords
   const doneKeywords = ['done', 'completed', 'finished', 'complete', 'finish', 'check', 'checked'];
-  const hasDoneKeyword = doneKeywords.some((k) => lower.includes(k));
+  const hasDoneKeyword = doneKeywords.some((k) => {
+    const regex = new RegExp(`\\b${k}\\b`, 'i');
+    return regex.test(lower);
+  });
 
-  if (hasDoneKeyword) {
-    let potentialClientName = '';
-    let potentialVideoStr = '';
+  // Pattern A: "Mark video five as complete" (or "mark video 5 done")
+  // Notice: could have a client mentioned (e.g. "mark video 5 as complete for Hardik") or bare ("mark video 5 as complete")
+  const markVideoMatch = lower.match(
+    /^mark\s+video\s+([a-zA-Z0-9]+)\s+(?:as\s+)?(?:done|complete|completed|finished)(?:\s+(?:for|of)\s+([a-zA-Z0-9\s]+))?$/i
+  );
 
-    // Pattern 1: "[Client][,: ] (mark)? video [number] (is)? (done|completed)"
-    // Example: "Rahul, video five is done", "Rahul video 5 completed", "mark Rahul video 5 done"
-    const clientFirstMatch = lower.match(
-      /^(?:please\s+)?(?:mark\s+)?([a-zA-Z0-9\s]+?)[,:]?\s+(?:mark\s+)?video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete|checked)/i
-    );
+  // Pattern B: "[Client], video [number] is done" / "[Client] video [number] completed"
+  const clientFirstMatch = lower.match(
+    /^(?:please\s+)?([a-zA-Z0-9\s]+?)[,:]?\s+video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete|checked)$/i
+  );
 
-    // Pattern 2: "(mark)? video [number] (is)? (done|completed) for/of [Client]"
-    // Example: "Video 5 is done for Rahul", "Video five done for Rahul"
-    const videoFirstMatch = lower.match(
-      /^(?:mark\s+)?video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete|checked)\s+(?:for|of)\s+([a-zA-Z0-9\s]+)/i
-    );
+  // Pattern C: "video [number] is done for [Client]"
+  const videoFirstMatch = lower.match(
+    /^video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete|checked)\s+(?:for|of)\s+([a-zA-Z0-9\s]+)$/i
+  );
 
-    // Pattern 3: "(mark)? video [number] for/of [Client] (is)? (done|completed)"
-    // Example: "Video 5 for Rahul is done"
-    const videoForClientMatch = lower.match(
-      /^(?:mark\s+)?video\s+([a-zA-Z0-9]+)\s+(?:for|of)\s+([a-zA-Z0-9\s]+?)\s+(?:is\s+)?(?:done|completed|finished|complete|checked)/i
-    );
+  // Pattern D: "video [number] for [Client] is done"
+  const videoForClientMatch = lower.match(
+    /^video\s+([a-zA-Z0-9]+)\s+(?:for|of)\s+([a-zA-Z0-9\s]+?)\s+(?:is\s+)?(?:done|completed|finished|complete|checked)$/i
+  );
 
-    // Pattern 4: "(mark)? video [number] (is)? (done|completed)" (no client specified)
-    // Example: "Video five is done", "Video 5 is done", "Mark video 5 done"
-    const videoOnlyMatch = lower.match(
-      /^(?:mark\s+)?video\s+([a-zA-Z0-9]+)\s*(?:is\s+)?(?:done|completed|finished|complete|checked)?$/i
-    );
+  // Pattern E: Bare video + done without client: "video five is done" / "video 5 is done"
+  const bareVideoDoneMatch = lower.match(
+    /^video\s+([a-zA-Z0-9]+)\s+(?:is\s+)?(?:done|completed|finished|complete|checked)$/i
+  );
 
-    if (videoFirstMatch) {
-      potentialVideoStr = videoFirstMatch[1];
-      potentialClientName = videoFirstMatch[2].trim();
-    } else if (videoForClientMatch) {
-      potentialVideoStr = videoForClientMatch[1];
-      potentialClientName = videoForClientMatch[2].trim();
-    } else if (clientFirstMatch) {
-      potentialClientName = clientFirstMatch[1].trim();
-      potentialVideoStr = clientFirstMatch[2].trim();
-    } else if (videoOnlyMatch) {
-      potentialVideoStr = videoOnlyMatch[1];
-      if (clients.length === 1) {
-        potentialClientName = clients[0].name;
-      } else if (clients.length > 1) {
-        const vNum = wordsToNumber(potentialVideoStr);
-        return {
-          success: false,
-          isAmbiguous: true,
-          ambiguityPrompt: `Which client is Video ${vNum || potentialVideoStr} for? Available clients: ${clients.map((c) => c.name).join(', ')}`,
-          message: `Multiple clients found. Please specify client name (e.g., "${clients[0].name}, video ${vNum || potentialVideoStr} is done").`,
-          actionType: 'COMPLETE_VIDEO',
-        };
-      } else {
-        return {
-          success: false,
-          message: 'No clients available. Please add a client first.',
-          actionType: 'COMPLETE_VIDEO',
-        };
-      }
+  // Pattern F: Bare video selection without done keyword: "video five" / "video 5"
+  const bareVideoOnlyMatch = lower.match(/^video\s+([a-zA-Z0-9]+)$/i);
+
+  // Pattern G: Client + Video without done keyword: "Hardik, video five" / "Hardik video 5"
+  const clientVideoSelectMatch = lower.match(
+    /^([a-zA-Z0-9\s]+?)[,:]?\s+video\s+([a-zA-Z0-9]+)$/i
+  );
+
+  // --- Handling Bare Video Only (e.g. "video five" or "video 5") ---
+  // RULE: A bare phrase such as "video five" must NEVER mark anything complete automatically!
+  if (bareVideoOnlyMatch) {
+    const rawNum = bareVideoOnlyMatch[1];
+    const vNum = wordsToNumber(rawNum);
+    const displayNum = vNum || rawNum;
+
+    if (clients.length === 0) {
+      return {
+        success: false,
+        message: 'No clients found. Please add a client first.',
+        actionType: 'CLARIFICATION',
+      };
     }
 
-    if (potentialVideoStr) {
-      const videoNum = wordsToNumber(potentialVideoStr);
+    if (clients.length === 1) {
+      return {
+        success: false,
+        message: `Which client's video ${displayNum}? Do you mean ${clients[0].name}? Say "${clients[0].name}, video ${displayNum} is done" to mark complete.`,
+        actionType: 'CLARIFICATION',
+        matchedClient: clients[0],
+        matchedVideoNumber: vNum || undefined,
+      };
+    }
 
-      if (!videoNum || videoNum <= 0) {
+    return {
+      success: false,
+      isAmbiguous: true,
+      ambiguityPrompt: `Which client's video ${displayNum}? Available clients: ${clients.map((c) => c.name).join(', ')}.`,
+      message: `Which client's video ${displayNum}? Please specify a client name.`,
+      actionType: 'CLARIFICATION',
+      matchedVideoNumber: vNum || undefined,
+    };
+  }
+
+  // --- Handling Client + Video Selection without completion (e.g. "Hardik, video five") ---
+  // User selected a specific video for a client, but did NOT state it was done.
+  if (clientVideoSelectMatch && !hasDoneKeyword) {
+    const rawClientName = clientVideoSelectMatch[1].trim();
+    const rawNum = clientVideoSelectMatch[2].trim();
+    const vNum = wordsToNumber(rawNum);
+
+    const clientMatch = findMatchingClient(rawClientName, clients);
+
+    if (clientMatch.client) {
+      const c = clientMatch.client;
+      if (!vNum || vNum <= 0) {
         return {
           success: false,
-          message: `Could not identify video number in "${potentialVideoStr}". Example: "Rahul, video 5 is done"`,
-          actionType: 'COMPLETE_VIDEO',
+          message: `Could not identify video number in "${rawNum}".`,
+          actionType: 'SELECT_VIDEO',
+          matchedClient: c,
         };
       }
 
-      // If client name is present, match it
-      if (!potentialClientName) {
-        if (clients.length === 1) {
-          potentialClientName = clients[0].name;
-        } else if (clients.length > 1) {
-          return {
-            success: false,
-            isAmbiguous: true,
-            ambiguityPrompt: `Which client is Video ${videoNum} for? Available clients: ${clients.map((c) => c.name).join(', ')}`,
-            message: `Please specify the client name for Video ${videoNum}.`,
-            actionType: 'COMPLETE_VIDEO',
-          };
-        } else {
-          return {
-            success: false,
-            message: 'No clients found. Please add a client first.',
-            actionType: 'COMPLETE_VIDEO',
-          };
-        }
-      }
-
-      const match = findMatchingClient(potentialClientName, clients);
-
-      if (match.isAmbiguous) {
-        return {
-          success: false,
-          isAmbiguous: true,
-          ambiguityPrompt: `Multiple clients matched "${potentialClientName}". Candidates: ${match.candidates.map((c) => c.name).join(', ')}`,
-          message: `Ambiguous client name "${potentialClientName}". Candidates: ${match.candidates.map((c) => c.name).join(', ')}`,
-          actionType: 'COMPLETE_VIDEO',
-        };
-      }
-
-      if (!match.client) {
-        return {
-          success: false,
-          message: `No client found matching "${potentialClientName}". Available: ${clients.map((c) => c.name).join(', ') || 'None'}`,
-          actionType: 'COMPLETE_VIDEO',
-        };
-      }
-
-      const client = match.client;
-      // Match strictly by displayed videoNumber
-      const targetVideo = client.videos.find((v) => v.videoNumber === videoNum);
-
+      const targetVideo = c.videos.find((v) => v.videoNumber === vNum);
       if (!targetVideo) {
         return {
           success: false,
-          message: `${client.name} has ${client.calculations.totalVideos} videos configured. Video ${videoNum} does not exist.`,
-          actionType: 'COMPLETE_VIDEO',
-          matchedClient: client,
+          message: `${c.name} has ${c.calculations.totalVideos} videos. Video ${vNum} does not exist.`,
+          actionType: 'SELECT_VIDEO',
+          matchedClient: c,
         };
       }
 
-      // Check if already completed: friendly message, no alarming error popup, no duplicate history
-      if (targetVideo.isCompleted) {
-        return {
-          success: true,
-          alreadyCompleted: true,
-          message: `Video ${videoNum} is already completed.`,
-          actionType: 'COMPLETE_VIDEO',
-          matchedClient: client,
-          matchedVideoNumber: videoNum,
-        };
-      }
-
-      // Unambiguous, pending video: executes directly without unnecessary confirmation
+      const statusText = targetVideo.isCompleted ? 'Completed' : 'Pending';
       return {
         success: true,
-        alreadyCompleted: false,
-        message: `Video ${videoNum} for ${client.name} completed!`,
-        actionType: 'COMPLETE_VIDEO',
-        matchedClient: client,
-        matchedVideoNumber: videoNum,
-        pendingAction: {
-          type: 'COMPLETE_VIDEO',
-          description: `Mark Video ${videoNum} completed for ${client.name}`,
-          clientName: client.name,
-          clientId: client.id,
-          videoNumber: videoNum,
-          videoId: targetVideo.id,
+        actionType: 'SELECT_VIDEO',
+        matchedClient: c,
+        matchedVideoNumber: vNum,
+        message: `${c.name} • Video ${vNum} is currently ${statusText}. Say "${c.name}, video ${vNum} is done" to mark as complete.`,
+        interpretedIntent: {
+          clientName: c.name,
+          videoNumber: vNum,
+          currentStatus: statusText,
+          actionDescription: `Select Video ${vNum} for ${c.name}`,
         },
+      };
+    }
+
+    if (clientMatch.isAmbiguous) {
+      return {
+        success: false,
+        isAmbiguous: true,
+        ambiguityPrompt: `Multiple clients matched "${rawClientName}": ${clientMatch.candidates.map((c) => c.name).join(', ')}.`,
+        message: `Ambiguous client name "${rawClientName}".`,
+        actionType: 'CLARIFICATION',
       };
     }
   }
 
-  // 5. Client Name Query / Identification (e.g. "Hardik", "client Hardik", "show Hardik", "Hardik videos")
+  // --- Handling Bare Video Done (e.g. "video five is done" / "mark video five as complete" without client) ---
+  if (bareVideoDoneMatch || (markVideoMatch && !markVideoMatch[2])) {
+    const rawNum = bareVideoDoneMatch ? bareVideoDoneMatch[1] : markVideoMatch![1];
+    const vNum = wordsToNumber(rawNum);
+    const displayNum = vNum || rawNum;
+
+    if (clients.length === 0) {
+      return {
+        success: false,
+        message: 'No clients found. Please add a client first.',
+        actionType: 'CLARIFICATION',
+      };
+    }
+
+    // RULE: Even with 1 client, NEVER mutate automatically without client confirmation!
+    return {
+      success: false,
+      isAmbiguous: true,
+      ambiguityPrompt: `Which client's video ${displayNum}? Available clients: ${clients.map((c) => c.name).join(', ')}.`,
+      message: `Which client's video ${displayNum}? Please say the client name (e.g. "${clients[0].name}, video ${displayNum} is done").`,
+      actionType: 'CLARIFICATION',
+      matchedVideoNumber: vNum || undefined,
+    };
+  }
+
+  // --- Handling Explicit Video Completion with Client ---
+  let targetClientQuery = '';
+  let targetVideoStr = '';
+
+  if (markVideoMatch && markVideoMatch[2]) {
+    targetVideoStr = markVideoMatch[1];
+    targetClientQuery = markVideoMatch[2].trim();
+  } else if (videoFirstMatch) {
+    targetVideoStr = videoFirstMatch[1];
+    targetClientQuery = videoFirstMatch[2].trim();
+  } else if (videoForClientMatch) {
+    targetVideoStr = videoForClientMatch[1];
+    targetClientQuery = videoForClientMatch[2].trim();
+  } else if (clientFirstMatch) {
+    targetClientQuery = clientFirstMatch[1].trim();
+    targetVideoStr = clientFirstMatch[2].trim();
+  }
+
+  if (targetVideoStr && targetClientQuery) {
+    const vNum = wordsToNumber(targetVideoStr);
+    if (!vNum || vNum <= 0) {
+      return {
+        success: false,
+        message: `Could not identify video number in "${targetVideoStr}".`,
+        actionType: 'COMPLETE_VIDEO',
+      };
+    }
+
+    const clientMatch = findMatchingClient(targetClientQuery, clients);
+
+    if (clientMatch.isAmbiguous) {
+      return {
+        success: false,
+        isAmbiguous: true,
+        ambiguityPrompt: `Multiple clients matched "${targetClientQuery}". Candidates: ${clientMatch.candidates.map((c) => c.name).join(', ')}.`,
+        message: `Ambiguous client name "${targetClientQuery}".`,
+        actionType: 'CLARIFICATION',
+      };
+    }
+
+    if (!clientMatch.client) {
+      return {
+        success: false,
+        message: `No client found matching "${targetClientQuery}". Available clients: ${clients.map((c) => c.name).join(', ') || 'None'}`,
+        actionType: 'COMPLETE_VIDEO',
+      };
+    }
+
+    const client = clientMatch.client;
+    const targetVideo = client.videos.find((v) => v.videoNumber === vNum);
+
+    if (!targetVideo) {
+      return {
+        success: false,
+        message: `${client.name} has ${client.calculations.totalVideos} videos configured. Video ${vNum} does not exist.`,
+        actionType: 'COMPLETE_VIDEO',
+        matchedClient: client,
+      };
+    }
+
+    // Already completed check: zero mutation, zero duplicate history
+    if (targetVideo.isCompleted) {
+      return {
+        success: true,
+        alreadyCompleted: true,
+        message: `Video ${vNum} is already completed for ${client.name}.`,
+        actionType: 'COMPLETE_VIDEO',
+        matchedClient: client,
+        matchedVideoNumber: vNum,
+        interpretedIntent: {
+          clientName: client.name,
+          videoNumber: vNum,
+          currentStatus: 'Completed',
+          actionDescription: `Video ${vNum} already completed for ${client.name}`,
+        },
+      };
+    }
+
+    // Unambiguous completion intent
+    return {
+      success: true,
+      alreadyCompleted: false,
+      message: `Marking Video ${vNum} for ${client.name} as complete.`,
+      actionType: 'COMPLETE_VIDEO',
+      matchedClient: client,
+      matchedVideoNumber: vNum,
+      requiresConfirmation: true,
+      interpretedIntent: {
+        clientName: client.name,
+        videoNumber: vNum,
+        currentStatus: 'Pending',
+        targetStatus: 'Completed',
+        actionDescription: `Mark Video ${vNum} completed for ${client.name}`,
+      },
+      pendingAction: {
+        type: 'COMPLETE_VIDEO',
+        description: `Mark Video ${vNum} completed for ${client.name}`,
+        clientName: client.name,
+        clientId: client.id,
+        videoNumber: vNum,
+        videoId: targetVideo.id,
+      },
+    };
+  }
+
+  // 6. Client Name Query / Identification (e.g. "Hardik", "client Hardik", "who is Hardik")
   // Allows user to speak a client name; recognizes and displays the client without completing any video or mutating SQLite!
   const candidateClientName = lower
     .replace(/^(?:client|who is|details of|details for|about|show|open|view)\s+/i, '')
@@ -534,7 +746,11 @@ export function parseVoiceCommand(
         success: true,
         actionType: 'QUERY',
         matchedClient: matched,
-        message: `Client "${matched.name}" recognized (${matched.calculations.completedVideos}/${matched.calculations.totalVideos} videos completed). Say e.g. "Video 5 is done" to mark a video.`,
+        message: `Client "${matched.name}" recognized (${matched.calculations.completedVideos}/${matched.calculations.totalVideos} videos completed). Say e.g. "${matched.name}, video 5 is done" or "Show ${matched.name}'s progress".`,
+        interpretedIntent: {
+          clientName: matched.name,
+          actionDescription: `Identify client ${matched.name}`,
+        },
       };
     }
 
@@ -543,8 +759,8 @@ export function parseVoiceCommand(
         success: false,
         isAmbiguous: true,
         ambiguityPrompt: `Multiple clients matched "${candidateClientName}": ${clientMatch.candidates.map((c) => c.name).join(', ')}.`,
-        message: `Ambiguous client name "${candidateClientName}". Candidates: ${clientMatch.candidates.map((c) => c.name).join(', ')}`,
-        actionType: 'QUERY',
+        message: `Ambiguous client name "${candidateClientName}".`,
+        actionType: 'CLARIFICATION',
       };
     }
   }
@@ -552,7 +768,7 @@ export function parseVoiceCommand(
   // Fallback / Unrecognized command
   return {
     success: false,
-    message: `Command not recognized: "${rawTranscript.trim()}". Try: "Rahul, video 5 is done" or say a client name.`,
+    message: `Command not recognized: "${rawTranscript.trim()}". Try: "Hardik, video 5 is done", "Show Hardik's progress", or say a client name.`,
     actionType: 'UNKNOWN',
   };
 }

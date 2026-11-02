@@ -18,15 +18,9 @@ import {
   VideoItem,
 } from '../types';
 import { THEME } from '../constants/theme';
-import {
-  formatCurrency,
-  formatDate,
-  formatTime,
-} from '../utils/calculations';
-import {
-  exportClientPDF,
-  exportClientExcel,
-} from '../services/exportService';
+import { formatCurrency, formatDate, formatTime } from '../utils/calculations';
+import { exportClientPDF, exportClientExcel } from '../services/exportService';
+import { PressableScale } from './PressableScale';
 
 interface ClientHistoryExportModalProps {
   visible: boolean;
@@ -140,13 +134,16 @@ export const ClientHistoryExportModal: React.FC<ClientHistoryExportModalProps> =
               <Text style={styles.headerTitle}>{client.name}</Text>
               <Text style={styles.headerSubtitle}>Delivery History & Export Reports</Text>
             </View>
-            <TouchableOpacity
+            <PressableScale
               onPress={onClose}
               style={styles.closeBtn}
+              activeScale={0.88}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Close History and Export Modal"
             >
               <Ionicons name="close" size={22} color={THEME.colors.textMuted} />
-            </TouchableOpacity>
+            </PressableScale>
           </View>
 
           <ScrollView
@@ -267,23 +264,27 @@ export const ClientHistoryExportModal: React.FC<ClientHistoryExportModalProps> =
                 </View>
               ) : (
                 <View style={styles.exportButtonsRow}>
-                  <TouchableOpacity
+                  <PressableScale
                     style={styles.exportPdfBtn}
                     onPress={handleExportPDF}
-                    activeOpacity={0.8}
+                    activeScale={0.94}
+                    accessibilityRole="button"
+                    accessibilityLabel="Export official PDF report"
                   >
                     <Ionicons name="document-text" size={16} color="#0B0C0E" />
                     <Text style={styles.exportPdfBtnText}>Export PDF</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
 
-                  <TouchableOpacity
+                  <PressableScale
                     style={styles.exportExcelBtn}
                     onPress={handleExportExcel}
-                    activeOpacity={0.8}
+                    activeScale={0.94}
+                    accessibilityRole="button"
+                    accessibilityLabel="Export Excel spreadsheet"
                   >
                     <Ionicons name="grid-outline" size={16} color={THEME.colors.mint} />
                     <Text style={styles.exportExcelBtnText}>Export Excel (.xlsx)</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 </View>
               )}
             </View>

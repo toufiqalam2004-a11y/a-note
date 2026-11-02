@@ -6,6 +6,7 @@ import { THEME } from '../constants/theme';
 import { formatCurrency } from '../utils/calculations';
 import { VideoChecklistItem } from './VideoChecklistItem';
 import { ClientHistoryExportModal } from './ClientHistoryExportModal';
+import { PressableScale } from './PressableScale';
 
 interface ClientCardProps {
   client: ClientWithVideos;
@@ -56,18 +57,23 @@ export const ClientCard: React.FC<ClientCardProps> = ({
         </View>
 
         <View style={styles.actionButtons}>
-          <TouchableOpacity
+          <PressableScale
             style={styles.iconBtn}
             onPress={handleDeletePress}
+            activeScale={0.88}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={`Delete ${client.name}`}
           >
             <Ionicons name="trash-outline" size={16} color={THEME.colors.textMuted} />
-          </TouchableOpacity>
+          </PressableScale>
 
-          <TouchableOpacity
+          <PressableScale
             style={styles.expandToggleBtn}
             onPress={() => setIsExpanded(!isExpanded)}
-            activeOpacity={0.7}
+            activeScale={0.94}
+            accessibilityRole="button"
+            accessibilityLabel={isExpanded ? 'Hide Videos' : 'Show Videos'}
           >
             <Text style={styles.expandToggleText}>
               {isExpanded ? 'Hide Videos' : `Videos (${calculations.completedVideos}/${calculations.totalVideos})`}
@@ -77,7 +83,7 @@ export const ClientCard: React.FC<ClientCardProps> = ({
               size={14}
               color={THEME.colors.mint}
             />
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       </View>
 
@@ -144,14 +150,16 @@ export const ClientCard: React.FC<ClientCardProps> = ({
 
       {/* History & Export Action Button */}
       <View style={styles.cardActionsRow}>
-        <TouchableOpacity
+        <PressableScale
           style={styles.historyExportBtn}
           onPress={() => setIsHistoryModalVisible(true)}
-          activeOpacity={0.7}
+          activeScale={0.96}
+          accessibilityRole="button"
+          accessibilityLabel={`History and reports for ${client.name}`}
         >
           <Ionicons name="document-text-outline" size={14} color={THEME.colors.mint} />
           <Text style={styles.historyExportBtnText}>History & Reports (PDF / XLSX)</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
 
       {/* Expandable Video Checklist */}

@@ -8,6 +8,7 @@
     "@kesha-antonov/react-native-background-downloader": "^4.6.4",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.31",
+    "expo-blur": "~57.0.3",
     "expo-constants": "~57.0.22",
     "expo-dev-client": "~57.0.20",
     "expo-document-picker": "~57.0.3",
@@ -35,7 +36,7 @@
     "android": "expo run:android",
     "build:apk": "eas build --platform android --profile preview",
     "build:dev": "eas build --platform android --profile development",
-    "ios": "expo start --ios",
+    "ios": "expo run:ios",
     "web": "expo start --web"
   },
   "private": true

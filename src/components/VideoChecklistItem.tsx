@@ -1,9 +1,11 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { VideoItem } from '../types';
 import { THEME } from '../constants/theme';
 import { formatCurrency } from '../utils/calculations';
+import { PressableScale } from './PressableScale';
+import { SPRING_PRESETS } from '../utils/motion';
 
 interface VideoChecklistItemProps {
   video: VideoItem;
@@ -22,6 +24,21 @@ export const VideoChecklistItem: React.FC<VideoChecklistItemProps> = ({
   onReopen,
   onPressRow,
 }) => {
+  const checkScale = useRef(new Animated.Value(1)).current;
+  const isCompletedRef = useRef(video.isCompleted);
+
+  // Trigger Apple-inspired spring bounce when completion genuinely transitions
+  useEffect(() => {
+    if (video.isCompleted && !isCompletedRef.current) {
+      checkScale.setValue(0.75);
+      Animated.spring(checkScale, {
+        toValue: 1,
+        ...SPRING_PRESETS.bouncy,
+      }).start();
+    }
+    isCompletedRef.current = video.isCompleted;
+  }, [video.isCompleted, checkScale]);
+
   const handleCheckboxPress = () => {
     if (video.isCompleted) {
       if (onReopen) {
@@ -40,22 +57,22 @@ export const VideoChecklistItem: React.FC<VideoChecklistItemProps> = ({
 
   return (
     <View style={[styles.itemContainer, video.isCompleted && styles.itemCompleted]}>
-      {/* Tapping row body opens details/options — NEVER toggles completion */}
-      <TouchableOpacity
+      {/* Tapping row body opens details/options with subtle scale — NEVER toggles completion */}
+      <PressableScale
         style={styles.leftGroup}
         onPress={() => onPressRow && onPressRow(video)}
-        activeOpacity={0.8}
+        activeScale={0.985}
         accessibilityRole="button"
         accessibilityLabel={`Video ${video.videoNumber} details`}
       >
-        {/* Dedicated completion button */}
-        <TouchableOpacity
+        {/* Dedicated completion button with immediate tactile spring */}
+        <PressableScale
           style={[
             styles.checkbox,
             video.isCompleted ? styles.checkboxChecked : styles.checkboxUnchecked,
           ]}
           onPress={handleCheckboxPress}
-          activeOpacity={0.7}
+          activeScale={0.86}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: video.isCompleted }}
@@ -66,9 +83,11 @@ export const VideoChecklistItem: React.FC<VideoChecklistItemProps> = ({
           }
         >
           {video.isCompleted && (
-            <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+            <Animated.View style={{ transform: [{ scale: checkScale }] }}>
+              <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+            </Animated.View>
           )}
-        </TouchableOpacity>
+        </PressableScale>
 
         <View style={styles.textGroup}>
           <Text
@@ -84,28 +103,32 @@ export const VideoChecklistItem: React.FC<VideoChecklistItemProps> = ({
             {video.isCompleted ? 'Completed' : `Pending • ${formatCurrency(ratePerVideo)}`}
           </Text>
         </View>
-      </TouchableOpacity>
+      </PressableScale>
 
       <View style={styles.rightGroup}>
         {video.isCompleted ? (
-          <TouchableOpacity
+          <PressableScale
             style={styles.reopenButton}
-            onPress={() => onReopen ? onReopen(video) : onToggle && onToggle(video)}
-            activeOpacity={0.7}
+            onPress={() => (onReopen ? onReopen(video) : onToggle && onToggle(video))}
+            activeScale={0.92}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={`Video ${video.videoNumber} completed, tap to reopen`}
           >
             <View style={styles.donePill}>
               <Text style={styles.donePillText}>DONE</Text>
             </View>
-          </TouchableOpacity>
+          </PressableScale>
         ) : (
-          <TouchableOpacity
+          <PressableScale
             style={styles.completeActionBtn}
-            onPress={() => onComplete ? onComplete(video) : onToggle && onToggle(video)}
-            activeOpacity={0.75}
+            onPress={() => (onComplete ? onComplete(video) : onToggle && onToggle(video))}
+            activeScale={0.94}
+            accessibilityRole="button"
+            accessibilityLabel={`Mark Video ${video.videoNumber} complete`}
           >
             <Text style={styles.actionPrompt}>Mark Complete</Text>
-          </TouchableOpacity>
+          </PressableScale>
         )}
       </View>
     </View>
@@ -138,25 +161,25 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
   checkbox: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
   },
   checkboxUnchecked: {
-    borderWidth: 1.5,
-    borderColor: '#D4C9E6',
-    backgroundColor: '#F7F3FC',
+    borderColor: THEME.colors.border,
+    backgroundColor: '#FFFFFF',
   },
   checkboxChecked: {
+    borderColor: THEME.colors.mint,
     backgroundColor: THEME.colors.mint,
   },
   textGroup: {
-    justifyContent: 'center',
     flex: 1,
   },
   videoTitle: {
@@ -166,6 +189,7 @@ const styles = StyleSheet.create({
   },
   videoTitleCompleted: {
     color: THEME.colors.textMuted,
+    textDecorationLine: 'line-through',
   },
   rateSubtitle: {
     fontSize: 11,
@@ -173,36 +197,36 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   rightGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  donePill: {
-    backgroundColor: 'rgba(0, 210, 135, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  donePillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: THEME.colors.mint,
-    letterSpacing: 0.5,
+    marginLeft: 8,
   },
   completeActionBtn: {
-    backgroundColor: '#F7F3FC',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    backgroundColor: THEME.colors.mintLight,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E8E1F3',
+    borderColor: 'rgba(0, 210, 135, 0.3)',
   },
   actionPrompt: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
-    color: THEME.colors.purple,
+    color: THEME.colors.mintDark,
   },
   reopenButton: {
     padding: 2,
+  },
+  donePill: {
+    backgroundColor: 'rgba(0, 210, 135, 0.15)',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 210, 135, 0.35)',
+  },
+  donePillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: THEME.colors.mintDark,
+    letterSpacing: 0.5,
   },
 });

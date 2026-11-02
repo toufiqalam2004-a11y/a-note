@@ -1,6 +1,8 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Animated, AccessibilityInfo } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
+import { PressableScale } from './PressableScale';
 
 interface WelcomeCardProps {
   userName?: string;
@@ -11,6 +13,43 @@ export const WelcomeCard: React.FC<WelcomeCardProps> = ({
   userName = 'Toufiq',
   onHowItWorks,
 }) => {
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (mounted && enabled) setReduceMotion(true);
+      })
+      .catch(() => {});
+
+    if (reduceMotion) return;
+
+    // Gentle restrained floating motion (max 4 cycles on initial display, then rests)
+    const floatLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -3.5,
+          duration: 1600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 1600,
+          useNativeDriver: true,
+        }),
+      ]),
+      { iterations: 4 }
+    );
+    floatLoop.start();
+
+    return () => {
+      mounted = false;
+      floatLoop.stop();
+    };
+  }, [floatAnim, reduceMotion]);
+
   return (
     <View style={styles.card}>
       {/* Left Message Column */}
@@ -23,23 +62,30 @@ export const WelcomeCard: React.FC<WelcomeCardProps> = ({
           Keep creating amazing edits
         </Text>
         {onHowItWorks && (
-          <TouchableOpacity
+          <PressableScale
             style={styles.howItWorksChip}
             onPress={onHowItWorks}
-            activeOpacity={0.75}
+            activeScale={0.94}
+            accessibilityRole="button"
+            accessibilityLabel="How A Note Works"
           >
             <Ionicons name="bulb-outline" size={13} color={THEME.colors.mintDark} />
             <Text style={styles.howItWorksText}>How It Works</Text>
-          </TouchableOpacity>
+          </PressableScale>
         )}
       </View>
 
       {/* Right 3D Creator Avatar & Floating Cam */}
       <View style={styles.illustrationContainer}>
         {/* Floating Green Video Icon with soft 3D glow */}
-        <View style={styles.floatingCamBadge}>
+        <Animated.View
+          style={[
+            styles.floatingCamBadge,
+            !reduceMotion && { transform: [{ translateY: floatAnim }] },
+          ]}
+        >
           <Ionicons name="videocam" size={14} color="#FFFFFF" />
-        </View>
+        </Animated.View>
 
         {/* 3D Creator Character Representation */}
         <View style={styles.avatarWrapper}>
