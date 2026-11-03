@@ -140,30 +140,43 @@ export function wordsToNumber(text: string): number | null {
  * Homophones are ONLY mapped in an unambiguous, explicitly specified video-number context.
  */
 export function normalizeCommandText(raw: string): string {
-  let text = raw.trim().toLowerCase();
-  // Strip trailing punctuation
-  text = text.replace(/^[.,!?;:\s]+|[.,!?;:\s]+$/g, '');
+  if (!raw) return '';
 
-  // Normalize "video number 5", "video no. 5", "video no 5", "video #5" -> "video 5"
+  // 1. Unicode apostrophe & quote normalization:
+  // Convert all curly apostrophes, smart quotes, prime, backtick, etc. to standard ASCII '
+  let text = raw.replace(/[\u2019\u2018\u02BC\u02BB\u00B4\u0060\u2032\uFF07]/g, "'");
+
+  // 2. Whitespace normalization:
+  // Collapse tabs, newlines, non-breaking spaces (\u00A0), narrow non-breaking spaces (\u202F), etc.
+  text = text.replace(/[\s\u00A0\u202F]+/g, ' ').trim().toLowerCase();
+
+  // 3. Normalize spacing around apostrophes (e.g. "Hardik 's" or "Hardik ' s" -> "Hardik's")
+  text = text.replace(/\s*'\s*s\b/g, "'s");
+  text = text.replace(/\s*'\s+/g, "' ");
+
+  // 4. Strip surrounding punctuation and quotes (keeping internal punctuation like apostrophes)
+  text = text.replace(/^[.,!?;:"“”«»'’‘`´()\s]+|[.,!?;:"“”«»'’‘`´()\s]+$/g, '');
+
+  // 5. Normalize "video number 5", "video no. 5", "video no 5", "video #5" -> "video 5"
   text = text.replace(/\bvideo\s+(?:number|no\.?|#)\s*([a-z0-9]+)/gi, 'video $1');
   text = text.replace(/\bvideo\s*#\s*([a-z0-9]+)/gi, 'video $1');
 
-  // Handle homophone "ate" -> 8 ONLY in explicit video completion: "video ate is done/finished/completed"
+  // 6. Handle homophone "ate" -> 8 ONLY in explicit video completion: "video ate is done/finished/completed"
   text = text.replace(/\bvideo\s+ate\s+(is\s+)?(done|completed|finished|complete|finish)\b/gi, 'video 8 $1$2');
 
-  // Handle homophone "for" -> 4 ONLY when preceded by a client name in a completion command:
+  // 7. Handle homophone "for" -> 4 ONLY when preceded by a client name in a completion command:
   // e.g. "Hardik video for is done" -> "Hardik video 4 is done"
   // (Prevents converting "video for Hardik is done" into "video 4 Hardik")
   text = text.replace(/(\b[a-z0-9]+\s+)video\s+for\s+(is\s+)?(done|completed|finished|complete|finish)\b/gi, '$1video 4 $2$3');
 
-  // Handle homophones "to" / "too" -> 2 in explicit video completion
+  // 8. Handle homophones "to" / "too" -> 2 in explicit video completion
   text = text.replace(/\bvideo\s+(?:to|too)\s+(is\s+)?(done|completed|finished|complete|finish)\b/gi, 'video 2 $1$2');
 
   return text;
 }
 
 /**
- * Finds a client by name using case-insensitive exact, prefix, and word boundary matching.
+ * Finds a client by name using case-insensitive exact, possessive-aware, prefix, and word boundary matching.
  */
 export function findMatchingClient(
   query: string,
@@ -173,12 +186,19 @@ export function findMatchingClient(
     return { client: null, isAmbiguous: false, candidates: [] };
   }
 
-  const cleanQuery = query.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+  // 0. Clean input and strip explicit apostrophe-s or trailing apostrophe
+  const rawClean = query
+    .toLowerCase()
+    .replace(/^(?:client|the|about)\s+/i, '')
+    .replace(/[']s?$|s[']$/i, '')
+    .trim();
+
+  const cleanQuery = rawClean.replace(/[^a-z0-9]/g, '').trim();
   if (!cleanQuery) {
     return { client: null, isAmbiguous: false, candidates: [] };
   }
 
-  // 1. Exact clean match
+  // 1. Exact clean match (e.g. "hardik" === "hardik")
   const exact = clients.filter(
     (c) => c.name.toLowerCase().replace(/[^a-z0-9]/g, '') === cleanQuery
   );
@@ -187,6 +207,20 @@ export function findMatchingClient(
   }
   if (exact.length > 1) {
     return { client: null, isAmbiguous: true, candidates: exact };
+  }
+
+  // 1b. Possessive trailing 's' check when speech engine omitted apostrophe (e.g. "hardiks" -> "hardik")
+  if (cleanQuery.endsWith('s') && cleanQuery.length > 2) {
+    const withoutS = cleanQuery.slice(0, -1);
+    const exactWithoutS = clients.filter(
+      (c) => c.name.toLowerCase().replace(/[^a-z0-9]/g, '') === withoutS
+    );
+    if (exactWithoutS.length === 1) {
+      return { client: exactWithoutS[0], isAmbiguous: false, candidates: exactWithoutS };
+    }
+    if (exactWithoutS.length > 1) {
+      return { client: null, isAmbiguous: true, candidates: exactWithoutS };
+    }
   }
 
   // 2. Prefix or whole-word match
@@ -275,8 +309,79 @@ export function parseVoiceCommand(
   // Confidence check: if confidence is below 0.25, require explicit confirmation
   const isLowConfidence = typeof confidence === 'number' && confidence >= 0 && confidence < 0.25;
 
-  // 1. Specific Client Navigation: "Show client Rahul", "Open client Rahul", "View Rahul"
-  const showClientMatch = lower.match(/^(?:show|open|view|go\s+to)\s+client\s+([^,]+)/i);
+  // 1. Client Progress Query:
+  // Supports:
+  // - "Show Hardik's progress" / "Hardik's progress" / "Hardik progress" / "Hardiks progress"
+  // - "Show progress of Hardik" / "Show progress for Hardik" / "Progress of Hardik"
+  // - "Show Hardik's status" / "Hardik status" / "Status of Hardik"
+  // - "What is Hardik's progress" / "Check Hardik's progress" / "Show client Hardik's progress"
+  let progressCandidate: string | null = null;
+
+  // Pattern A: "progress of/for/about <client>", "status of/for <client>"
+  const matchProgressOf = lower.match(
+    /^(?:show|view|check|open|get|tell\s+me|what\s+is|display)?\s*(?:the\s+)?(?:progress|status|stats|analytics)\s+(?:of|for|about)\s+(?:the\s+)?(?:client\s+)?(.+)$/i
+  );
+  if (matchProgressOf) {
+    progressCandidate = matchProgressOf[1].trim();
+  }
+
+  // Pattern B: "<client>'s progress", "show <client>'s progress", "<client> progress", "<client> status"
+  if (!progressCandidate) {
+    const matchProgressClient = lower.match(
+      /^(?:show|view|check|open|get|tell\s+me|what\s+is|display)?\s*(?:the\s+)?(?:client\s+)?(.+?)\s*(?:[']s?)?\s+(?:progress|status|stats|analytics)$/i
+    );
+    if (matchProgressClient) {
+      progressCandidate = matchProgressClient[1].trim();
+    }
+  }
+
+  if (progressCandidate) {
+    const cleanCandidateName = progressCandidate
+      .replace(/^(?:client|the|about)\s+/i, '')
+      .replace(/[']s?$|s[']$/i, '')
+      .trim();
+
+    const match = findMatchingClient(cleanCandidateName, clients);
+    if (match.client) {
+      const c = match.client;
+      const pct =
+        c.calculations.totalVideos > 0
+          ? Math.round((c.calculations.completedVideos / c.calculations.totalVideos) * 100)
+          : 0;
+      return {
+        success: true,
+        actionType: 'CLIENT_PROGRESS',
+        matchedClient: c,
+        message: `${c.name}'s Progress: ${c.calculations.completedVideos}/${c.calculations.totalVideos} videos completed (${pct}%). Pending work: ₹${c.calculations.remainingValue.toLocaleString('en-IN')}.`,
+        interpretedIntent: {
+          clientName: c.name,
+          actionDescription: `View progress for ${c.name}`,
+        },
+      };
+    }
+
+    if (match.isAmbiguous) {
+      return {
+        success: false,
+        isAmbiguous: true,
+        ambiguityPrompt: `Which client's progress? Candidates: ${match.candidates.map((c) => c.name).join(', ')}`,
+        message: `Ambiguous client name "${cleanCandidateName}".`,
+        actionType: 'CLARIFICATION',
+      };
+    }
+
+    // Client not found in progress query
+    return {
+      success: false,
+      message: `Client "${cleanCandidateName}" not found. Try saying an existing client's name or add them first.`,
+      actionType: 'CLIENT_PROGRESS',
+    };
+  }
+
+  // 2. Specific Client Navigation: "Show client Rahul", "Open client Rahul", "View client Rahul"
+  // Excludes progress queries to avoid false navigation
+  const isProgressQuery = /(?:progress|status|stats|analytics)$/i.test(lower);
+  const showClientMatch = !isProgressQuery ? lower.match(/^(?:show|open|view|go\s+to)\s+client\s+([^,]+)/i) : null;
   if (showClientMatch) {
     const rawTarget = showClientMatch[1].trim().replace(/[.,!?:;]/g, '');
     const match = findMatchingClient(rawTarget, clients);
@@ -300,42 +405,7 @@ export function parseVoiceCommand(
     }
   }
 
-  // 2. Client Progress Query: "Show Hardik's progress", "Hardik progress", "Hardik status", "Show progress for Hardik"
-  const progressMatch = lower.match(
-    /^(?:show\s+)?([a-zA-Z0-9\s]+?)['’]?s?\s+(?:progress|status|stats|analytics)$/i
-  ) || lower.match(
-    /^(?:show\s+)?(?:progress|status)\s+(?:of|for)\s+([a-zA-Z0-9\s]+)$/i
-  );
 
-  if (progressMatch) {
-    const candidateName = progressMatch[1].trim();
-    const match = findMatchingClient(candidateName, clients);
-    if (match.client) {
-      const c = match.client;
-      const pct = c.calculations.totalVideos > 0
-        ? Math.round((c.calculations.completedVideos / c.calculations.totalVideos) * 100)
-        : 0;
-      return {
-        success: true,
-        actionType: 'CLIENT_PROGRESS',
-        matchedClient: c,
-        message: `${c.name}'s Progress: ${c.calculations.completedVideos}/${c.calculations.totalVideos} videos completed (${pct}%). Pending work: ₹${c.calculations.remainingValue.toLocaleString('en-IN')}.`,
-        interpretedIntent: {
-          clientName: c.name,
-          actionDescription: `View progress for ${c.name}`,
-        },
-      };
-    }
-    if (match.isAmbiguous) {
-      return {
-        success: false,
-        isAmbiguous: true,
-        ambiguityPrompt: `Which client's progress? Candidates: ${match.candidates.map((c) => c.name).join(', ')}`,
-        message: `Ambiguous client name "${candidateName}".`,
-        actionType: 'CLARIFICATION',
-      };
-    }
-  }
 
   // 3. Global Navigation commands
   if (lower === 'new client' || lower === 'add client' || lower === 'create client') {
@@ -735,7 +805,7 @@ export function parseVoiceCommand(
   // Allows user to speak a client name; recognizes and displays the client without completing any video or mutating SQLite!
   const candidateClientName = lower
     .replace(/^(?:client|who is|details of|details for|about|show|open|view)\s+/i, '')
-    .replace(/\s+(?:videos?|details|profile|account|status|work|tasks?)$/i, '')
+    .replace(/\s+(?:videos?|details|profile|account|status|work|tasks?|progress|analytics|stats)$/i, '')
     .trim();
 
   if (candidateClientName.length > 0) {

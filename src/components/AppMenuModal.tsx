@@ -19,6 +19,7 @@ import { THEME } from '../constants/theme';
 import { PressableScale } from './PressableScale';
 import { GlassView } from './GlassView';
 import { SPRING_PRESETS, TIMING_PRESETS } from '../utils/motion';
+import { UserProfile } from '../services/userProfileService';
 
 interface AppMenuModalProps {
   visible: boolean;
@@ -28,6 +29,8 @@ interface AppMenuModalProps {
   onOpenExportReports: () => void;
   onOpenDataManagement: () => void;
   onOpenIntro: () => void;
+  onOpenProfile: () => void;
+  userProfile?: UserProfile | null;
 }
 
 export const AppMenuModal: React.FC<AppMenuModalProps> = ({
@@ -38,6 +41,8 @@ export const AppMenuModal: React.FC<AppMenuModalProps> = ({
   onOpenExportReports,
   onOpenDataManagement,
   onOpenIntro,
+  onOpenProfile,
+  userProfile,
 }) => {
   const insets = useSafeAreaInsets();
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -268,7 +273,29 @@ export const AppMenuModal: React.FC<AppMenuModalProps> = ({
               <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
             </PressableScale>
 
-            {/* 4. Settings & Data Management (Backup, Restore, Delete All Data) */}
+            {/* 4. My Profile & Workspace Personalization */}
+            <PressableScale
+              style={styles.menuItem}
+              onPress={() => handleSelectItem(onOpenProfile)}
+              activeScale={0.98}
+              accessibilityRole="button"
+              accessibilityLabel="Personalize Workspace Profile"
+            >
+              <View style={[styles.iconCircle, { backgroundColor: '#EDE8FD' }]}>
+                <Ionicons name="person-circle-outline" size={20} color={THEME.colors.purple} />
+              </View>
+              <View style={styles.itemTextCol}>
+                <Text style={styles.itemTitle}>Personalize Workspace</Text>
+                <Text style={styles.itemDesc} numberOfLines={1}>
+                  {userProfile?.displayName
+                    ? `${userProfile.displayName} • ${userProfile.profession || 'Workspace'}`
+                    : 'Set your name, profession & studio'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
+            </PressableScale>
+
+            {/* 5. Settings & Data Management (Backup, Restore, Delete All Data) */}
             <PressableScale
               style={[styles.menuItem, styles.highlightMenuItem]}
               onPress={() => handleSelectItem(onOpenDataManagement)}

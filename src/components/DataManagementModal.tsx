@@ -16,11 +16,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
 import { deleteAllAppData } from '../services/db';
 import { PressableScale } from './PressableScale';
+import { UserProfile } from '../services/userProfileService';
 
 interface DataManagementModalProps {
   visible: boolean;
   onClose: () => void;
   onOpenBackupRestore: () => void;
+  onOpenProfile?: () => void;
+  userProfile?: UserProfile | null;
   onDataCleared: () => Promise<void>;
   onNotify: (msg: string, isError?: boolean) => void;
 }
@@ -31,6 +34,8 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
   visible,
   onClose,
   onOpenBackupRestore,
+  onOpenProfile,
+  userProfile,
   onDataCleared,
   onNotify,
 }) => {
@@ -124,7 +129,43 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {/* 1. Backup & Restore Section */}
+            {/* 1. Workspace Profile Section */}
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.iconBox, { backgroundColor: '#EDE8FD' }]}>
+                  <Ionicons name="person-circle-outline" size={22} color={THEME.colors.purple} />
+                </View>
+                <View style={styles.sectionTitleGroup}>
+                  <Text style={styles.sectionTitle}>My Profile &amp; Workspace</Text>
+                  <Text style={styles.sectionDesc}>
+                    {userProfile?.displayName
+                      ? `${userProfile.displayName} • ${userProfile.profession || 'Creative'}${
+                          userProfile.studioName ? ` (${userProfile.studioName})` : ''
+                        }`
+                      : 'Personalize your creator name, profession & studio.'}
+                  </Text>
+                </View>
+              </View>
+
+              <PressableScale
+                style={styles.actionRow}
+                onPress={() => {
+                  onClose();
+                  if (onOpenProfile) onOpenProfile();
+                }}
+                activeScale={0.96}
+                accessibilityRole="button"
+                accessibilityLabel="Edit Profile and Workspace"
+              >
+                <View style={styles.actionRowLeft}>
+                  <Ionicons name="pencil-outline" size={18} color={THEME.colors.purple} />
+                  <Text style={styles.actionRowText}>Edit Workspace Profile</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
+              </PressableScale>
+            </View>
+
+            {/* 2. Backup & Restore Section */}
             <View style={styles.sectionCard}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.iconBox, { backgroundColor: '#EDE8FD' }]}>

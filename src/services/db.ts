@@ -124,6 +124,11 @@ export async function initDatabase(): Promise<void> {
       if (!hasSeeded && (!countResult || countResult.count === 0)) {
         await seedInitialData();
         await AsyncStorage.setItem('@anote_has_seeded_v1', 'true');
+        await AsyncStorage.setItem('@anote_onboarding_status_v1', 'pending');
+      } else if (!hasSeeded && countResult && countResult.count > 0) {
+        // Existing user with pre-existing SQLite clients, but missing AsyncStorage flags
+        await AsyncStorage.setItem('@anote_has_seeded_v1', 'true');
+        await AsyncStorage.setItem('@anote_onboarding_status_v1', 'skipped');
       }
       return;
     } catch (e) {
@@ -138,6 +143,10 @@ export async function initDatabase(): Promise<void> {
   if (!hasSeededFallback && !stored) {
     await seedInitialDataFallback();
     await AsyncStorage.setItem('@anote_has_seeded_v1', 'true');
+    await AsyncStorage.setItem('@anote_onboarding_status_v1', 'pending');
+  } else if (!hasSeededFallback && stored) {
+    await AsyncStorage.setItem('@anote_has_seeded_v1', 'true');
+    await AsyncStorage.setItem('@anote_onboarding_status_v1', 'skipped');
   }
 }
 
@@ -472,30 +481,33 @@ export async function addClient(
 
   if (db && isSQLiteAvailable) {
     try {
-      await db.runAsync(
-        'INSERT INTO clients (id, name, total_budget, rate_per_video, created_at, video_types) VALUES (?, ?, ?, ?, ?, ?);',
-        clientId,
-        name.trim(),
-        totalBudget,
-        ratePerVideo,
-        createdAt,
-        JSON.stringify(cleanVideoTypes)
-      );
-
-      for (const v of generatedVideos) {
+      await db.withTransactionAsync(async () => {
         await db.runAsync(
-          'INSERT INTO videos (id, client_id, video_number, title, video_type, is_completed, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?);',
-          v.id,
-          v.clientId,
-          v.videoNumber,
-          v.title || `Video ${v.videoNumber}`,
-          v.videoType || null,
-          0,
-          null
+          'INSERT INTO clients (id, name, total_budget, rate_per_video, created_at, video_types) VALUES (?, ?, ?, ?, ?, ?);',
+          clientId,
+          name.trim(),
+          totalBudget,
+          ratePerVideo,
+          createdAt,
+          JSON.stringify(cleanVideoTypes)
         );
-      }
+
+        for (const v of generatedVideos) {
+          await db.runAsync(
+            'INSERT INTO videos (id, client_id, video_number, title, video_type, is_completed, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?);',
+            v.id,
+            v.clientId,
+            v.videoNumber,
+            v.title || `Video ${v.videoNumber}`,
+            v.videoType || null,
+            0,
+            null
+          );
+        }
+      });
     } catch (e) {
       console.warn('[EditFlow DB] Failed to insert client in SQLite:', e);
+      throw e;
     }
   }
 
@@ -730,11 +742,14 @@ export async function deleteClient(clientId: string): Promise<void> {
   const db = await getDbInstance();
   if (db && isSQLiteAvailable) {
     try {
-      await db.runAsync('DELETE FROM videos WHERE client_id = ?;', clientId);
-      await db.runAsync('DELETE FROM completion_history WHERE client_id = ?;', clientId);
-      await db.runAsync('DELETE FROM clients WHERE id = ?;', clientId);
+      await db.withTransactionAsync(async () => {
+        await db.runAsync('DELETE FROM videos WHERE client_id = ?;', clientId);
+        await db.runAsync('DELETE FROM completion_history WHERE client_id = ?;', clientId);
+        await db.runAsync('DELETE FROM clients WHERE id = ?;', clientId);
+      });
     } catch (e) {
       console.warn('[EditFlow DB] Error deleting client in SQLite:', e);
+      throw e;
     }
   }
 

@@ -30,6 +30,10 @@ import {
   deleteClient,
 } from './src/services/db';
 import { calculateDashboardSummary, formatCurrency } from './src/utils/calculations';
+import {
+  checkForAndDownloadUpdateInBackground,
+  setVoiceRecordingActive,
+} from './src/services/updateService';
 import { Header } from './src/components/Header';
 import { WelcomeCard } from './src/components/WelcomeCard';
 import { OverallProgressCard } from './src/components/OverallProgressCard';
@@ -44,6 +48,13 @@ import { NavigationBar, TabKey } from './src/components/NavigationBar';
 import { ClientHistoryExportModal } from './src/components/ClientHistoryExportModal';
 import { SplashAnimation } from './src/components/SplashAnimation';
 import { FirstLaunchIntro, INTRO_STORAGE_KEY } from './src/components/FirstLaunchIntro';
+import { OnboardingModal } from './src/components/OnboardingModal';
+import { ProfileSettingsModal } from './src/components/ProfileSettingsModal';
+import {
+  UserProfile,
+  getUserProfile,
+  shouldShowOnboarding,
+} from './src/services/userProfileService';
 import { BackupRestoreModal } from './src/components/BackupRestoreModal';
 import { AppMenuModal } from './src/components/AppMenuModal';
 import { DataManagementModal } from './src/components/DataManagementModal';
@@ -67,6 +78,9 @@ export default function App() {
   const [toastIsError, setToastIsError] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [isIntroVisible, setIsIntroVisible] = useState(false);
+  const [isOnboardingVisible, setIsOnboardingVisible] = useState(false);
+  const [isProfileSettingsVisible, setIsProfileSettingsVisible] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   // Initialize DB and load clients
   const loadData = useCallback(async () => {
@@ -92,18 +106,33 @@ export default function App() {
       await initDatabase();
       await loadData();
 
-      // Check if first-launch intro was completed
+      // Check user profile & first-launch onboarding status
       try {
-        const hasCompleted = await AsyncStorage.getItem(INTRO_STORAGE_KEY);
-        if (!hasCompleted) {
-          setIsIntroVisible(true);
+        const profile = await getUserProfile();
+        setUserProfile(profile);
+
+        const shouldShow = await shouldShowOnboarding();
+        if (shouldShow) {
+          setIsOnboardingVisible(true);
         }
       } catch (e) {
-        console.warn('[A Note] Intro check failed:', e);
+        console.warn('[A Note] Onboarding/profile check failed:', e);
       }
+
+      // Safe, non-intrusive background OTA update check
+      setTimeout(() => {
+        checkForAndDownloadUpdateInBackground(() => {
+          showNotification('A Note update downloaded. It will apply on next restart.');
+        }).catch(() => {});
+      }, 4000);
     }
     start();
   }, [loadData]);
+
+  // Synchronize voice recording state with update service to guard against reloads during speech
+  useEffect(() => {
+    setVoiceRecordingActive(isVoiceAssistantVisible);
+  }, [isVoiceAssistantVisible]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -421,13 +450,18 @@ export default function App() {
   // Delete Client
   const handleDeleteClient = async (clientId: string) => {
     const target = clients.find((c) => c.id === clientId);
-    setClients((prev) => prev.filter((c) => c.id !== clientId));
-    if (selectedClient && selectedClient.id === clientId) {
-      setSelectedClient(null);
-    }
-    await deleteClient(clientId);
-    if (target) {
-      showNotification(`Removed client ${target.name}.`);
+    try {
+      await deleteClient(clientId);
+      setClients((prev) => prev.filter((c) => c.id !== clientId));
+      if (selectedClient && selectedClient.id === clientId) {
+        setSelectedClient(null);
+      }
+      if (target) {
+        showNotification(`Removed client ${target.name}.`);
+      }
+    } catch (e) {
+      console.warn('[A Note] Failed to delete client:', e);
+      showNotification('Failed to delete client', true);
     }
   };
 
@@ -539,10 +573,14 @@ export default function App() {
               >
                 {activeTab === 'home' && (
                   <>
-                    {/* Welcome Card matching Screen 1 */}
+                    {/* Personalized Welcome Card */}
                     <WelcomeCard
-                      userName="Toufiq"
+                      userName={userProfile?.displayName || 'Toufiq'}
+                      studioName={userProfile?.studioName}
+                      profession={userProfile?.profession}
+                      isPersonalized={Boolean(userProfile?.displayName)}
                       onHowItWorks={() => setIsIntroVisible(true)}
+                      onEditProfile={() => setIsProfileSettingsVisible(true)}
                     />
 
                     {clients.length === 0 ? (
@@ -862,6 +900,8 @@ export default function App() {
           }}
           onOpenDataManagement={() => setIsDataManagementVisible(true)}
           onOpenIntro={() => setIsIntroVisible(true)}
+          onOpenProfile={() => setIsProfileSettingsVisible(true)}
+          userProfile={userProfile}
         />
 
         {/* Data Management & Settings Modal */}
@@ -869,6 +909,8 @@ export default function App() {
           visible={isDataManagementVisible}
           onClose={() => setIsDataManagementVisible(false)}
           onOpenBackupRestore={() => setIsBackupRestoreVisible(true)}
+          onOpenProfile={() => setIsProfileSettingsVisible(true)}
+          userProfile={userProfile}
           onDataCleared={async () => {
             await loadData();
             setSelectedClient(null);
@@ -877,7 +919,31 @@ export default function App() {
           onNotify={showNotification}
         />
 
-        {/* First-Launch Intro Modal */}
+        {/* First-Launch Welcome & Personalization Experience Modal */}
+        <OnboardingModal
+          visible={isOnboardingVisible}
+          onComplete={(newProfile) => {
+            setUserProfile(newProfile);
+            setIsOnboardingVisible(false);
+            showNotification(`Welcome to A Note, ${newProfile.displayName}!`);
+          }}
+          onSkip={() => {
+            setIsOnboardingVisible(false);
+          }}
+        />
+
+        {/* Workspace Personalization / Profile Settings Modal */}
+        <ProfileSettingsModal
+          visible={isProfileSettingsVisible}
+          currentProfile={userProfile}
+          onClose={() => setIsProfileSettingsVisible(false)}
+          onProfileUpdated={(updated) => {
+            setUserProfile(updated);
+          }}
+          onNotify={showNotification}
+        />
+
+        {/* First-Launch Feature Guide & Intro Modal */}
         <FirstLaunchIntro
           visible={isIntroVisible}
           onGetStarted={() => setIsIntroVisible(false)}
