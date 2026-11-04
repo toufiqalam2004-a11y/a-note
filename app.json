@@ -25,9 +25,9 @@
     },
     "android": {
       "package": "com.editflow.app",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
-        "backgroundColor": "#F0EBF8",
+        "backgroundColor": "#7654F5",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

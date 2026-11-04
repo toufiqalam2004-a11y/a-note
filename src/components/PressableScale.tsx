@@ -4,6 +4,7 @@ import {
   Animated,
   StyleProp,
   ViewStyle,
+  StyleSheet,
   GestureResponderEvent,
   AccessibilityRole,
   AccessibilityState,
@@ -16,6 +17,7 @@ import { SPRING_PRESETS } from '../utils/motion';
 export interface PressableScaleProps {
   children?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  containerStyle?: StyleProp<ViewStyle>;
   activeScale?: number;
   activeOpacity?: number;
   onPress?: (event: GestureResponderEvent) => void;
@@ -35,6 +37,7 @@ export interface PressableScaleProps {
 export const PressableScale: React.FC<PressableScaleProps> = ({
   children,
   style,
+  containerStyle,
   activeScale = 0.96,
   activeOpacity = 0.88,
   onPress,
@@ -107,6 +110,30 @@ export const PressableScale: React.FC<PressableScaleProps> = ({
     if (onPressOut) onPressOut(e);
   };
 
+  // Automatically lift outer flexbox and dimensions to the parent Pressable
+  const flattened = StyleSheet.flatten(style) || {};
+  const pressableLayout: ViewStyle = {};
+
+  if (flattened.flex !== undefined) pressableLayout.flex = flattened.flex;
+  if (flattened.flexGrow !== undefined) pressableLayout.flexGrow = flattened.flexGrow;
+  if (flattened.flexShrink !== undefined) pressableLayout.flexShrink = flattened.flexShrink;
+  if (flattened.flexBasis !== undefined) pressableLayout.flexBasis = flattened.flexBasis;
+  if (flattened.width !== undefined) pressableLayout.width = flattened.width;
+  if (flattened.minWidth !== undefined) pressableLayout.minWidth = flattened.minWidth;
+  if (flattened.maxWidth !== undefined) pressableLayout.maxWidth = flattened.maxWidth;
+  if (flattened.margin !== undefined) pressableLayout.margin = flattened.margin;
+  if (flattened.marginTop !== undefined) pressableLayout.marginTop = flattened.marginTop;
+  if (flattened.marginBottom !== undefined) pressableLayout.marginBottom = flattened.marginBottom;
+  if (flattened.marginLeft !== undefined) pressableLayout.marginLeft = flattened.marginLeft;
+  if (flattened.marginRight !== undefined) pressableLayout.marginRight = flattened.marginRight;
+  if (flattened.marginHorizontal !== undefined) pressableLayout.marginHorizontal = flattened.marginHorizontal;
+  if (flattened.marginVertical !== undefined) pressableLayout.marginVertical = flattened.marginVertical;
+  if (flattened.alignSelf !== undefined) {
+    pressableLayout.alignSelf = flattened.alignSelf;
+  } else {
+    pressableLayout.alignSelf = 'stretch';
+  }
+
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
@@ -121,11 +148,12 @@ export const PressableScale: React.FC<PressableScaleProps> = ({
       accessibilityState={accessibilityState}
       accessibilityValue={accessibilityValue}
       testID={testID}
-      style={{ alignSelf: 'stretch' }}
+      style={[pressableLayout, containerStyle]}
     >
       <Animated.View
         style={[
           style,
+          pressableLayout.flex !== undefined && { flex: 1, width: '100%' },
           !reduceMotion && {
             transform: [{ scale: scaleAnim }],
             opacity: opacityAnim,

@@ -172,9 +172,8 @@ export async function shouldShowOnboarding(hasExistingClients?: boolean): Promis
             const clientCount = countRes?.count || 0;
             const hasSeeded = await AsyncStorage.getItem(LEGACY_SEEDED_KEY);
 
-            // If clients exist in SQLite and either hasSeeded is missing (wiped storage)
-            // or there are custom clients beyond the initial demo count (> 2)
-            if (clientCount > 0 && (!hasSeeded || clientCount > 2)) {
+            // If clients exist in SQLite for an existing user (even if AsyncStorage was wiped)
+            if (clientCount > 0) {
               await AsyncStorage.setItem(ONBOARDING_STATUS_KEY, 'skipped');
               return false;
             }

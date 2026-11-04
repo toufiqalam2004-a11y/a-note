@@ -266,24 +266,26 @@ export const ClientHistoryExportModal: React.FC<ClientHistoryExportModalProps> =
                 <View style={styles.exportButtonsRow}>
                   <PressableScale
                     style={styles.exportPdfBtn}
+                    containerStyle={styles.exportBtnContainer}
                     onPress={handleExportPDF}
                     activeScale={0.94}
                     accessibilityRole="button"
                     accessibilityLabel="Export official PDF report"
                   >
-                    <Ionicons name="document-text" size={16} color="#0B0C0E" />
+                    <Ionicons name="document-text" size={16} color="#FFFFFF" />
                     <Text style={styles.exportPdfBtnText}>Export PDF</Text>
                   </PressableScale>
 
                   <PressableScale
                     style={styles.exportExcelBtn}
+                    containerStyle={styles.exportBtnContainer}
                     onPress={handleExportExcel}
                     activeScale={0.94}
                     accessibilityRole="button"
                     accessibilityLabel="Export Excel spreadsheet"
                   >
-                    <Ionicons name="grid-outline" size={16} color={THEME.colors.mint} />
-                    <Text style={styles.exportExcelBtnText}>Export Excel (.xlsx)</Text>
+                    <Ionicons name="grid" size={16} color="#FFFFFF" />
+                    <Text style={styles.exportExcelBtnText}>Export Excel</Text>
                   </PressableScale>
                 </View>
               )}
@@ -646,45 +648,51 @@ const styles = StyleSheet.create({
   exportButtonsRow: {
     flexDirection: 'row',
     gap: 10,
+    alignItems: 'center',
+  },
+  exportBtnContainer: {
+    flex: 1,
   },
   exportPdfBtn: {
-    flex: 1,
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     backgroundColor: THEME.colors.mint,
-    paddingVertical: 14,
-    borderRadius: 9999,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 14,
     shadowColor: THEME.colors.mint,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
   },
   exportPdfBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   exportExcelBtn: {
-    flex: 1,
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     backgroundColor: THEME.colors.purple,
-    paddingVertical: 14,
-    borderRadius: 9999,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 14,
     shadowColor: THEME.colors.purple,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
   },
   exportExcelBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   exportLoadingBox: {

@@ -274,6 +274,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                             styles.professionCard,
                             isSelected && styles.professionCardSelected,
                           ]}
+                          containerStyle={styles.professionCardContainer}
                           onPress={() => setSelectedProfession(profession)}
                           activeScale={0.96}
                           accessibilityRole="radio"
@@ -574,18 +575,20 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-  professionCard: {
+  professionCardContainer: {
     width: '48.5%',
+  },
+  professionCard: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FAF8FD',
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 10,
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: '#ECE5F7',
     gap: 8,
-    position: 'relative',
   },
   professionCardSelected: {
     backgroundColor: '#EBFBF5',
@@ -612,7 +615,7 @@ const styles = StyleSheet.create({
   },
   professionTitle: {
     flex: 1,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: '#4A4568',
   },

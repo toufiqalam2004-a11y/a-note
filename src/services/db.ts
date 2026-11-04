@@ -122,7 +122,7 @@ export async function initDatabase(): Promise<void> {
       );
 
       if (!hasSeeded && (!countResult || countResult.count === 0)) {
-        await seedInitialData();
+        // Fresh install: start with a clean empty database (no fake/demo clients)
         await AsyncStorage.setItem('@anote_has_seeded_v1', 'true');
         await AsyncStorage.setItem('@anote_onboarding_status_v1', 'pending');
       } else if (!hasSeeded && countResult && countResult.count > 0) {
@@ -141,7 +141,7 @@ export async function initDatabase(): Promise<void> {
   const hasSeededFallback = await AsyncStorage.getItem('@anote_has_seeded_v1');
   const stored = await AsyncStorage.getItem(ASYNC_STORAGE_KEY);
   if (!hasSeededFallback && !stored) {
-    await seedInitialDataFallback();
+    // Fresh install fallback: start with clean empty storage
     await AsyncStorage.setItem('@anote_has_seeded_v1', 'true');
     await AsyncStorage.setItem('@anote_onboarding_status_v1', 'pending');
   } else if (!hasSeededFallback && stored) {

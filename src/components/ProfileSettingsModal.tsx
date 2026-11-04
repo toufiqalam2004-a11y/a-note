@@ -223,6 +223,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
                           styles.professionCard,
                           isSelected && styles.professionCardSelected,
                         ]}
+                        containerStyle={styles.professionCardContainer}
                         onPress={() => setSelectedProfession(profession)}
                         activeScale={0.96}
                         accessibilityRole="radio"
@@ -237,7 +238,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
                         >
                           <Ionicons
                             name={iconName}
-                            size={16}
+                            size={18}
                             color={isSelected ? THEME.colors.mintDark : THEME.colors.textSecondary}
                           />
                         </View>
@@ -252,7 +253,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
                         </Text>
                         {isSelected && (
                           <View style={styles.checkBadge}>
-                            <Ionicons name="checkmark-sharp" size={10} color="#FFFFFF" />
+                            <Ionicons name="checkmark-sharp" size={12} color="#FFFFFF" />
                           </View>
                         )}
                       </PressableScale>
@@ -303,6 +304,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
 
                 <PressableScale
                   style={styles.saveBtn}
+                  containerStyle={styles.saveBtnContainer}
                   onPress={handleSave}
                   activeScale={0.96}
                   disabled={isSaving}
@@ -310,7 +312,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
                   accessibilityLabel="Save Profile Changes"
                 >
                   <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
-                  <Text style={styles.saveBtnText}>Save Changes</Text>
+                  <Text style={styles.saveBtnText}>{isSaving ? 'Saving...' : 'Save Changes'}</Text>
                 </PressableScale>
               </View>
             </ScrollView>
@@ -474,27 +476,34 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-  professionCard: {
+  professionCardContainer: {
     width: '48.5%',
+  },
+  professionCard: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FAF8FD',
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 10,
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: '#ECE5F7',
     gap: 8,
-    position: 'relative',
   },
   professionCardSelected: {
     backgroundColor: '#EBFBF5',
     borderColor: THEME.colors.mint,
+    shadowColor: THEME.colors.mint,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
   },
   professionIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 9,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -507,7 +516,7 @@ const styles = StyleSheet.create({
   },
   professionTitle: {
     flex: 1,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: '#4A4568',
   },
@@ -516,9 +525,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   checkBadge: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: THEME.colors.mint,
     alignItems: 'center',
     justifyContent: 'center',
@@ -527,6 +536,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginTop: 8,
+    alignItems: 'center',
   },
   cancelBtn: {
     flex: 1,
@@ -541,14 +551,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: THEME.colors.textNavy,
   },
+  saveBtnContainer: {
+    flex: 1.5,
+  },
   saveBtn: {
-    flex: 1.8,
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     backgroundColor: '#1E1B38',
     paddingVertical: 14,
+    paddingHorizontal: 12,
     borderRadius: 18,
     shadowColor: '#1E1B38',
     shadowOffset: { width: 0, height: 4 },

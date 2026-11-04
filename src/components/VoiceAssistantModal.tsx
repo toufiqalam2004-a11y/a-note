@@ -226,7 +226,11 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       result.actionType === 'SELECT_VIDEO'
     ) {
       setVoiceState('success');
-      setStatusMessage(result.message);
+      if (result.actionType === 'QUERY' && result.matchedClient) {
+        setStatusMessage(`Client "${result.matchedClient.name}" recognized (${result.matchedClient.calculations.completedVideos}/${result.matchedClient.calculations.totalVideos} done)`);
+      } else {
+        setStatusMessage(result.message);
+      }
       setFeedbackColor(THEME.colors.purple);
       return;
     }
@@ -621,15 +625,26 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                     />
                     <Text style={styles.intentHeaderTitle}>
                       {parsedResult.actionType === 'CLARIFICATION'
-                        ? 'Clarification Required'
+                        ? 'Select Client'
                         : parsedResult.requiresConfirmation
-                        ? 'Confirmation Required'
-                        : 'Interpreted Intent'}
+                        ? parsedResult.pendingAction?.type === 'COMPLETE_VIDEO'
+                          ? 'Confirm Video Completion'
+                          : parsedResult.pendingAction?.type === 'ADD_CLIENT'
+                          ? 'Confirm New Client'
+                          : 'Please Confirm'
+                        : parsedResult.actionType === 'CLIENT_PROGRESS'
+                        ? `${parsedResult.interpretedIntent?.clientName || 'Client'}'s Progress`
+                        : parsedResult.actionType === 'QUERY'
+                        ? 'Client Overview'
+                        : 'Action Details'}
                     </Text>
                   </View>
 
                   <Text style={styles.intentDescription}>
-                    {parsedResult.interpretedIntent?.actionDescription || parsedResult.message}
+                    {parsedResult.requiresConfirmation &&
+                    parsedResult.pendingAction?.type === 'COMPLETE_VIDEO'
+                      ? `Mark Video #${parsedResult.interpretedIntent?.videoNumber ?? parsedResult.matchedVideoNumber} completed for ${parsedResult.interpretedIntent?.clientName ?? parsedResult.matchedClient?.name}?`
+                      : parsedResult.interpretedIntent?.actionDescription || parsedResult.message}
                   </Text>
 
                   {/* Intent details pill row */}
@@ -689,17 +704,25 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                     <View style={styles.confirmActionRow}>
                       <PressableScale
                         style={styles.confirmBtn}
+                        containerStyle={styles.confirmBtnContainer}
                         onPress={handleConfirmAction}
                         activeScale={0.94}
+                        accessibilityRole="button"
+                        accessibilityLabel="Confirm Action"
                       >
-                        <Text style={styles.confirmBtnText}>Confirm Completion</Text>
+                        <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+                        <Text style={styles.confirmBtnText}>Confirm</Text>
                       </PressableScale>
 
                       <PressableScale
                         style={styles.cancelBtn}
+                        containerStyle={styles.confirmBtnContainer}
                         onPress={handleCancelAction}
                         activeScale={0.94}
+                        accessibilityRole="button"
+                        accessibilityLabel="Cancel Action"
                       >
+                        <Ionicons name="close-circle-outline" size={16} color={THEME.colors.textNavy} />
                         <Text style={styles.cancelBtnText}>Cancel</Text>
                       </PressableScale>
                     </View>
@@ -833,24 +856,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
     marginBottom: 16,
+    paddingHorizontal: 12,
+    width: '100%',
   },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderWidth: 1.5,
+    maxWidth: '100%',
     shadowColor: THEME.colors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.08,
     shadowRadius: 6,
-    elevation: 1,
+    elevation: 2,
   },
   statusPillText: {
     fontSize: 12,
     fontWeight: '700',
+    flexShrink: 1,
+    textAlign: 'center',
+    lineHeight: 16,
   },
   visualizerGlassCard: {
     marginBottom: 16,
@@ -1010,15 +1040,28 @@ const styles = StyleSheet.create({
   },
   confirmActionRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 10,
+    gap: 12,
+    marginTop: 14,
+    alignItems: 'center',
+  },
+  confirmBtnContainer: {
+    flex: 1,
   },
   confirmBtn: {
-    flex: 1,
-    backgroundColor: THEME.colors.mint,
-    paddingVertical: 10,
-    borderRadius: 14,
+    width: '100%',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: THEME.colors.mint,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    shadowColor: THEME.colors.mint,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
   },
   confirmBtnText: {
     fontSize: 13,
@@ -1026,16 +1069,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   cancelBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    borderRadius: 14,
+    width: '100%',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#F0EBF8',
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 14,
   },
   cancelBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: THEME.colors.textMuted,
+    color: THEME.colors.textNavy,
   },
   examplesSection: {
     marginTop: 8,
