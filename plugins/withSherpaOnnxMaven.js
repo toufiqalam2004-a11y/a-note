@@ -1,4 +1,4 @@
-const { withProjectBuildGradle, withDangerousMod } = require('@expo/config-plugins');
+const { withProjectBuildGradle, withDangerousMod, withGradleProperties } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -6,7 +6,9 @@ const path = require('path');
  * Expo Config Plugin to:
  * 1. Inject the custom maven repository for sherpa-onnx AARs (https://xdcobra.github.io/maven)
  *    into root build.gradle.
- * 2. Ensure Android react-native-sherpa-onnx Kotlin files safely handle 'file://' URI prefixes
+ * 2. Configure gradle.properties to disable unused FFmpeg and Libarchive native libraries in
+ *    react-native-sherpa-onnx (sherpaOnnxDisableFfmpeg=true, sherpaOnnxDisableLibarchive=true).
+ * 3. Ensure Android react-native-sherpa-onnx Kotlin files safely handle 'file://' URI prefixes
  *    without throwing "File path does not exist: file:///data/...".
  */
 function withSherpaOnnxMaven(config) {
@@ -31,7 +33,23 @@ function withSherpaOnnxMaven(config) {
     return modConfig;
   });
 
-  // 2. Prebuild hook to patch react-native-sherpa-onnx Kotlin files for file:// URI resilience
+  // 2. Configure gradle.properties to disable unused FFmpeg and Libarchive (idempotent)
+  config = withGradleProperties(config, (modConfig) => {
+    modConfig.modResults = modConfig.modResults.filter(
+      (item) =>
+        !(
+          item.type === 'property' &&
+          (item.key === 'sherpaOnnxDisableFfmpeg' || item.key === 'sherpaOnnxDisableLibarchive')
+        )
+    );
+    modConfig.modResults.push(
+      { type: 'property', key: 'sherpaOnnxDisableFfmpeg', value: 'true' },
+      { type: 'property', key: 'sherpaOnnxDisableLibarchive', value: 'true' }
+    );
+    return modConfig;
+  });
+
+  // 3. Prebuild hook to patch react-native-sherpa-onnx Kotlin files for file:// URI resilience
   config = withDangerousMod(config, [
     'android',
     async (modConfig) => {
