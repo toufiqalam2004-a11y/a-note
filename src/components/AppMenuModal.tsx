@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { PressableScale } from './PressableScale';
 import { GlassView } from './GlassView';
 import { SPRING_PRESETS, TIMING_PRESETS } from '../utils/motion';
@@ -45,6 +46,7 @@ export const AppMenuModal: React.FC<AppMenuModalProps> = ({
   userProfile,
 }) => {
   const insets = useSafeAreaInsets();
+  const { theme, isDark } = useTheme();
   const [reduceMotion, setReduceMotion] = useState(false);
   const screenHeight = Dimensions.get('window').height;
   const sheetHeightRef = useRef(Math.max(screenHeight, 600));
@@ -172,11 +174,11 @@ export const AppMenuModal: React.FC<AppMenuModalProps> = ({
         >
           <GlassView
             style={styles.menuSheetGlass}
-            intensity={65}
+            intensity={isDark ? 70 : 65}
             borderRadius={28}
             borderWidth={1.5}
-            borderColor="rgba(255, 255, 255, 0.88)"
-            backgroundColor="rgba(255, 255, 255, 0.94)"
+            borderColor={isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.88)'}
+            backgroundColor={isDark ? 'rgba(24, 28, 43, 0.96)' : 'rgba(255, 255, 255, 0.95)'}
           >
             <View
               style={[
@@ -194,21 +196,21 @@ export const AppMenuModal: React.FC<AppMenuModalProps> = ({
               />
               <View>
                 <View style={styles.brandRow}>
-                  <Text style={styles.brandA}>A </Text>
-                  <Text style={styles.brandNote}>Note</Text>
+                  <Text style={[styles.brandA, { color: theme.colors.purple }]}>A </Text>
+                  <Text style={[styles.brandNote, { color: theme.colors.mint }]}>Note</Text>
                 </View>
-                <Text style={styles.menuSubtitle}>Client Video &amp; Revenue Tracker</Text>
+                <Text style={[styles.menuSubtitle, { color: theme.colors.textMuted }]}>Client Video &amp; Revenue Tracker</Text>
               </View>
             </View>
             <PressableScale
-              style={styles.closeBtn}
+              style={[styles.closeBtn, { backgroundColor: theme.colors.backgroundSubtle }]}
               onPress={handleSafeBack}
               activeScale={0.88}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               accessibilityRole="button"
               accessibilityLabel="Close Menu"
             >
-              <Ionicons name="close" size={22} color={THEME.colors.textMuted} />
+              <Ionicons name="close" size={22} color={theme.colors.textMuted} />
             </PressableScale>
           </View>
 
@@ -221,116 +223,153 @@ export const AppMenuModal: React.FC<AppMenuModalProps> = ({
           >
             {/* 1. Add Client */}
             <PressableScale
-              style={styles.menuItem}
+              style={[
+                styles.menuItem,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.borderLight,
+                },
+              ]}
               onPress={() => handleSelectItem(onOpenAddClient)}
               activeScale={0.98}
               accessibilityRole="button"
               accessibilityLabel="Add New Client"
             >
-              <View style={[styles.iconCircle, { backgroundColor: '#EDE8FD' }]}>
-                <Ionicons name="person-add" size={18} color={THEME.colors.purple} />
+              <View style={[styles.iconCircle, { backgroundColor: theme.colors.purpleLight }]}>
+                <Ionicons name="person-add" size={18} color={theme.colors.purple} />
               </View>
               <View style={styles.itemTextCol}>
-                <Text style={styles.itemTitle}>Add New Client</Text>
-                <Text style={styles.itemDesc}>Create client quota, budget, and per-video rate</Text>
+                <Text style={[styles.itemTitle, { color: theme.colors.textPrimary }]}>Add New Client</Text>
+                <Text style={[styles.itemDesc, { color: theme.colors.textMuted }]}>Create client quota, budget, and per-video rate</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
+              <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
             </PressableScale>
 
             {/* 2. Voice Assistant */}
             <PressableScale
-              style={styles.menuItem}
+              style={[
+                styles.menuItem,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.borderLight,
+                },
+              ]}
               onPress={() => handleSelectItem(onOpenVoice)}
               activeScale={0.98}
               accessibilityRole="button"
               accessibilityLabel="Voice Assistant"
             >
-              <View style={[styles.iconCircle, { backgroundColor: '#EBFBF5' }]}>
-                <Ionicons name="mic" size={18} color={THEME.colors.mint} />
+              <View style={[styles.iconCircle, { backgroundColor: theme.colors.mintLight }]}>
+                <Ionicons name="mic" size={18} color={theme.colors.mint} />
               </View>
               <View style={styles.itemTextCol}>
-                <Text style={styles.itemTitle}>Voice Assistant</Text>
-                <Text style={styles.itemDesc}>Complete videos hands-free or with typed commands</Text>
+                <Text style={[styles.itemTitle, { color: theme.colors.textPrimary }]}>Voice Assistant</Text>
+                <Text style={[styles.itemDesc, { color: theme.colors.textMuted }]}>Complete videos hands-free or with typed commands</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
+              <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
             </PressableScale>
 
             {/* 3. Export Reports */}
             <PressableScale
-              style={styles.menuItem}
+              style={[
+                styles.menuItem,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.borderLight,
+                },
+              ]}
               onPress={() => handleSelectItem(onOpenExportReports)}
               activeScale={0.98}
               accessibilityRole="button"
               accessibilityLabel="Export Reports"
             >
-              <View style={[styles.iconCircle, { backgroundColor: '#FFF7E6' }]}>
-                <Ionicons name="document-text" size={18} color={THEME.colors.amber} />
+              <View style={[styles.iconCircle, { backgroundColor: theme.colors.amberLight }]}>
+                <Ionicons name="document-text" size={18} color={theme.colors.amber} />
               </View>
               <View style={styles.itemTextCol}>
-                <Text style={styles.itemTitle}>Export Reports (PDF / Excel)</Text>
-                <Text style={styles.itemDesc}>Generate formal PDF and .xlsx statements</Text>
+                <Text style={[styles.itemTitle, { color: theme.colors.textPrimary }]}>Export Reports (PDF / Excel)</Text>
+                <Text style={[styles.itemDesc, { color: theme.colors.textMuted }]}>Generate formal PDF and .xlsx statements</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
+              <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
             </PressableScale>
 
             {/* 4. My Profile & Workspace Personalization */}
             <PressableScale
-              style={styles.menuItem}
+              style={[
+                styles.menuItem,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.borderLight,
+                },
+              ]}
               onPress={() => handleSelectItem(onOpenProfile)}
               activeScale={0.98}
               accessibilityRole="button"
               accessibilityLabel="Personalize Workspace Profile"
             >
-              <View style={[styles.iconCircle, { backgroundColor: '#EDE8FD' }]}>
-                <Ionicons name="person-circle-outline" size={20} color={THEME.colors.purple} />
+              <View style={[styles.iconCircle, { backgroundColor: theme.colors.purpleLight }]}>
+                <Ionicons name="person-circle-outline" size={20} color={theme.colors.purple} />
               </View>
               <View style={styles.itemTextCol}>
-                <Text style={styles.itemTitle}>Personalize Workspace</Text>
-                <Text style={styles.itemDesc} numberOfLines={1}>
+                <Text style={[styles.itemTitle, { color: theme.colors.textPrimary }]}>Personalize Workspace</Text>
+                <Text style={[styles.itemDesc, { color: theme.colors.textMuted }]} numberOfLines={1}>
                   {userProfile?.displayName
                     ? `${userProfile.displayName} • ${userProfile.profession || 'Workspace'}`
-                    : 'Set your name, profession & studio'}
+                    : 'Set your name, profession, studio & theme'}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
+              <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
             </PressableScale>
 
             {/* 5. Settings & Data Management (Backup, Restore, Delete All Data) */}
             <PressableScale
-              style={[styles.menuItem, styles.highlightMenuItem]}
+              style={[
+                styles.menuItem,
+                styles.highlightMenuItem,
+                {
+                  backgroundColor: isDark ? 'rgba(124, 92, 252, 0.12)' : '#FAF7FF',
+                  borderColor: theme.colors.purpleBorder,
+                },
+              ]}
               onPress={() => handleSelectItem(onOpenDataManagement)}
               activeScale={0.98}
               accessibilityRole="button"
               accessibilityLabel="Settings and Data Management"
             >
-              <View style={[styles.iconCircle, { backgroundColor: '#EDE8FD' }]}>
-                <Ionicons name="server" size={18} color={THEME.colors.purple} />
+              <View style={[styles.iconCircle, { backgroundColor: theme.colors.purpleLight }]}>
+                <Ionicons name="server" size={18} color={theme.colors.purple} />
               </View>
               <View style={styles.itemTextCol}>
-                <Text style={[styles.itemTitle, { color: THEME.colors.purple }]}>
+                <Text style={[styles.itemTitle, { color: theme.colors.purple }]}>
                   Settings &amp; Data Management
                 </Text>
-                <Text style={styles.itemDesc}>Backup &amp; Restore &bull; Delete All App Data</Text>
+                <Text style={[styles.itemDesc, { color: theme.colors.textMuted }]}>Backup &amp; Restore &bull; Delete All App Data</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={THEME.colors.purple} />
+              <Ionicons name="chevron-forward" size={18} color={theme.colors.purple} />
             </PressableScale>
 
-            {/* 5. App Guide & Intro */}
+            {/* 6. App Guide & Intro */}
             <PressableScale
-              style={styles.menuItem}
+              style={[
+                styles.menuItem,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.borderLight,
+                },
+              ]}
               onPress={() => handleSelectItem(onOpenIntro)}
               activeScale={0.98}
               accessibilityRole="button"
               accessibilityLabel="App Guide and Intro"
             >
-              <View style={[styles.iconCircle, { backgroundColor: '#F0EBF8' }]}>
-                <Ionicons name="information-circle-outline" size={18} color={THEME.colors.textNavy} />
+              <View style={[styles.iconCircle, { backgroundColor: theme.colors.backgroundSubtle }]}>
+                <Ionicons name="information-circle-outline" size={18} color={theme.colors.textPrimary} />
               </View>
               <View style={styles.itemTextCol}>
-                <Text style={styles.itemTitle}>App Guide &amp; Intro</Text>
-                <Text style={styles.itemDesc}>Overview of features, calculations, and tips</Text>
+                <Text style={[styles.itemTitle, { color: theme.colors.textPrimary }]}>App Guide &amp; Intro</Text>
+                <Text style={[styles.itemDesc, { color: theme.colors.textMuted }]}>Overview of features, calculations, and tips</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
+              <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
             </PressableScale>
           </ScrollView>
         </View>

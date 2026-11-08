@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { DashboardSummary } from '../types';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { formatCurrency } from '../utils/calculations';
 
 interface DashboardSummaryCardsProps {
@@ -14,34 +15,42 @@ export const DashboardSummaryCards: React.FC<DashboardSummaryCardsProps> = ({
   summary,
   clientCount,
 }) => {
+  const { theme } = useTheme();
+
+  const cardDynamicStyle = {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.borderLight,
+    shadowColor: theme.colors.shadowColor,
+  };
+
   return (
     <View style={styles.gridContainer}>
       {/* Row 1: Delivery Quotas */}
       <View style={styles.cardsRow}>
         {/* Card 1: Total Videos & Client Count */}
-        <View style={styles.card}>
+        <View style={[styles.card, cardDynamicStyle]}>
           <View style={styles.cardHeader}>
-            <View style={[styles.iconCircle, styles.purpleIconBg]}>
-              <Ionicons name="videocam" size={16} color={THEME.colors.purple} />
+            <View style={[styles.iconCircle, { backgroundColor: theme.colors.purpleLight }]}>
+              <Ionicons name="videocam" size={16} color={theme.colors.purple} />
             </View>
-            <Text style={styles.cardLabel}>Video Quota</Text>
+            <Text style={[styles.cardLabel, { color: theme.colors.textMuted }]}>Video Quota</Text>
           </View>
-          <Text style={styles.cardNumber}>{summary.totalVideos}</Text>
-          <Text style={styles.cardSubText}>
+          <Text style={[styles.cardNumber, { color: theme.colors.textPrimary }]}>{summary.totalVideos}</Text>
+          <Text style={[styles.cardSubText, { color: theme.colors.textMuted }]}>
             {clientCount} active {clientCount === 1 ? 'client' : 'clients'}
           </Text>
         </View>
 
         {/* Card 2: Completed Videos & Earned Revenue */}
-        <View style={styles.card}>
+        <View style={[styles.card, cardDynamicStyle]}>
           <View style={styles.cardHeader}>
-            <View style={[styles.iconCircle, styles.mintIconBg]}>
-              <Ionicons name="checkmark-done" size={16} color={THEME.colors.mint} />
+            <View style={[styles.iconCircle, { backgroundColor: theme.colors.mintLight }]}>
+              <Ionicons name="checkmark-done" size={16} color={theme.colors.mint} />
             </View>
-            <Text style={styles.cardLabel}>Completed</Text>
+            <Text style={[styles.cardLabel, { color: theme.colors.textMuted }]}>Completed</Text>
           </View>
-          <Text style={styles.cardNumber}>{summary.completedVideos}</Text>
-          <Text style={[styles.cardSubText, styles.mintSubText]}>
+          <Text style={[styles.cardNumber, { color: theme.colors.textPrimary }]}>{summary.completedVideos}</Text>
+          <Text style={[styles.cardSubText, { color: theme.colors.mintDark, fontWeight: '700' }]}>
             {formatCurrency(summary.completedValue)} earned
           </Text>
         </View>
@@ -50,31 +59,39 @@ export const DashboardSummaryCards: React.FC<DashboardSummaryCardsProps> = ({
       {/* Row 2: Work Value & Advance Reconciliation */}
       <View style={styles.cardsRow}>
         {/* Card 3: Remaining Videos & Pending Work Value */}
-        <View style={styles.card}>
+        <View style={[styles.card, cardDynamicStyle]}>
           <View style={styles.cardHeader}>
-            <View style={[styles.iconCircle, styles.amberIconBg]}>
-              <Ionicons name="hourglass-outline" size={16} color={THEME.colors.amber} />
+            <View style={[styles.iconCircle, { backgroundColor: theme.colors.amberLight }]}>
+              <Ionicons name="hourglass-outline" size={16} color={theme.colors.amber} />
             </View>
-            <Text style={styles.cardLabel}>Remaining</Text>
+            <Text style={[styles.cardLabel, { color: theme.colors.textMuted }]}>Remaining</Text>
           </View>
-          <Text style={styles.cardNumber}>{summary.remainingVideos}</Text>
-          <Text style={styles.cardSubText}>
+          <Text style={[styles.cardNumber, { color: theme.colors.textPrimary }]}>{summary.remainingVideos}</Text>
+          <Text style={[styles.cardSubText, { color: theme.colors.textMuted }]}>
             {formatCurrency(summary.remainingValue)} pending
           </Text>
         </View>
 
         {/* Card 4: Payments Received & Unused Balance */}
-        <View style={styles.card}>
+        <View style={[styles.card, cardDynamicStyle]}>
           <View style={styles.cardHeader}>
-            <View style={[styles.iconCircle, styles.walletIconBg]}>
-              <Ionicons name="wallet-outline" size={16} color={THEME.colors.purple} />
+            <View style={[styles.iconCircle, { backgroundColor: theme.colors.purpleLight }]}>
+              <Ionicons name="wallet-outline" size={16} color={theme.colors.purple} />
             </View>
-            <Text style={styles.cardLabel}>Payments</Text>
+            <Text style={[styles.cardLabel, { color: theme.colors.textMuted }]}>Payments</Text>
           </View>
-          <Text style={styles.cardNumberCompact}>
+          <Text style={[styles.cardNumberCompact, { color: theme.colors.textPrimary }]}>
             {formatCurrency(summary.totalValue)}
           </Text>
-          <Text style={[styles.cardSubText, summary.totalUnusedBudget > 0 && styles.amberSubText]}>
+          <Text
+            style={[
+              styles.cardSubText,
+              {
+                color: summary.totalUnusedBudget > 0 ? theme.colors.amber : theme.colors.textMuted,
+                fontWeight: summary.totalUnusedBudget > 0 ? '700' : '500',
+              },
+            ]}
+          >
             {formatCurrency(summary.totalUnusedBudget)} unused balance
           </Text>
         </View>

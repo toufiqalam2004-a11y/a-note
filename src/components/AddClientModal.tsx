@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { formatCurrency } from '../utils/calculations';
 import { PREDEFINED_VIDEO_TYPES } from '../constants/videoTypes';
 import { ClientWithVideos } from '../types';
@@ -41,6 +42,7 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
   initialClient,
 }) => {
   const isEditing = Boolean(initialClient);
+  const { theme, isDark } = useTheme();
 
   const [name, setName] = useState('');
   const [budgetStr, setBudgetStr] = useState('');
@@ -169,12 +171,23 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={styles.modalContentWrapper}
           >
-            <View style={styles.card}>
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.borderLight,
+                  shadowColor: theme.colors.shadowColor,
+                },
+              ]}
+            >
               {/* Header */}
               <View style={styles.headerRow}>
                 <View style={styles.headerTitleGroup}>
-                  <Text style={styles.title}>{isEditing ? 'Edit Client' : 'New Client'}</Text>
-                  <Text style={styles.subtitle}>
+                  <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+                    {isEditing ? 'Edit Client' : 'New Client'}
+                  </Text>
+                  <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
                     {isEditing
                       ? 'Update client details and video categories'
                       : 'Set budget, rate, and video types'}
@@ -182,13 +195,13 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
                 </View>
                 <PressableScale
                   onPress={handleClose}
-                  style={styles.closeBtn}
+                  style={[styles.closeBtn, { backgroundColor: theme.colors.backgroundSubtle }]}
                   activeScale={0.88}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   accessibilityRole="button"
                   accessibilityLabel="Close Client Modal"
                 >
-                  <Ionicons name="close" size={20} color={THEME.colors.textNavy} />
+                  <Ionicons name="close" size={20} color={theme.colors.textPrimary} />
                 </PressableScale>
               </View>
 
@@ -208,11 +221,18 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
               >
                 {/* Client Name Field */}
                 <View style={styles.formGroup}>
-                  <Text style={styles.label}>Client Name</Text>
+                  <Text style={[styles.label, { color: theme.colors.textPrimary }]}>Client Name</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.colors.backgroundSubtle,
+                        borderColor: theme.colors.borderLight,
+                        color: theme.colors.textPrimary,
+                      },
+                    ]}
                     placeholder="e.g. Rahul Sharma"
-                    placeholderTextColor={THEME.colors.textMuted}
+                    placeholderTextColor={theme.colors.textMuted}
                     value={name}
                     onChangeText={(t) => {
                       setName(t);
@@ -225,11 +245,18 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
                 {/* Budget & Rate Fields */}
                 <View style={styles.rowFields}>
                   <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.label}>Total Budget (₹)</Text>
+                    <Text style={[styles.label, { color: theme.colors.textPrimary }]}>Total Budget (₹)</Text>
                     <TextInput
-                      style={styles.input}
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: theme.colors.backgroundSubtle,
+                          borderColor: theme.colors.borderLight,
+                          color: theme.colors.textPrimary,
+                        },
+                      ]}
                       placeholder="e.g. 10000"
-                      placeholderTextColor={THEME.colors.textMuted}
+                      placeholderTextColor={theme.colors.textMuted}
                       keyboardType="numeric"
                       value={budgetStr}
                       onChangeText={(t) => {
@@ -240,11 +267,18 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
                   </View>
 
                   <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.label}>Per-Video Rate (₹)</Text>
+                    <Text style={[styles.label, { color: theme.colors.textPrimary }]}>Per-Video Rate (₹)</Text>
                     <TextInput
-                      style={styles.input}
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: theme.colors.backgroundSubtle,
+                          borderColor: theme.colors.borderLight,
+                          color: theme.colors.textPrimary,
+                        },
+                      ]}
                       placeholder="e.g. 800"
-                      placeholderTextColor={THEME.colors.textMuted}
+                      placeholderTextColor={theme.colors.textMuted}
                       keyboardType="numeric"
                       value={rateStr}
                       onChangeText={(t) => {
@@ -257,28 +291,30 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
 
                 {/* Live Automatic Calculation Box */}
                 {numBudget > 0 && numRate > 0 && (
-                  <View style={styles.calcPreviewBox}>
+                  <View style={[styles.calcPreviewBox, { backgroundColor: theme.colors.backgroundSubtle }]}>
                     <View style={styles.calcTitleRow}>
-                      <Ionicons name="calculator-outline" size={15} color={THEME.colors.mint} />
-                      <Text style={styles.calcTitle}>Automatic Capacity</Text>
+                      <Ionicons name="calculator-outline" size={15} color={theme.colors.mint} />
+                      <Text style={[styles.calcTitle, { color: theme.colors.textPrimary }]}>Automatic Capacity</Text>
                     </View>
                     <View style={styles.calcGrid}>
                       <View style={styles.calcItem}>
-                        <Text style={styles.calcLabel}>Total Videos</Text>
-                        <Text style={[styles.calcValue, { color: THEME.colors.mint }]}>
+                        <Text style={[styles.calcLabel, { color: theme.colors.textMuted }]}>Total Videos</Text>
+                        <Text style={[styles.calcValue, { color: theme.colors.mint }]}>
                           {totalVideos} videos
                         </Text>
                       </View>
                       <View style={styles.calcItem}>
-                        <Text style={styles.calcLabel}>Earnable Value</Text>
-                        <Text style={styles.calcValue}>{formatCurrency(assignedValue)}</Text>
+                        <Text style={[styles.calcLabel, { color: theme.colors.textMuted }]}>Earnable Value</Text>
+                        <Text style={[styles.calcValue, { color: theme.colors.textPrimary }]}>{formatCurrency(assignedValue)}</Text>
                       </View>
                       <View style={styles.calcItem}>
-                        <Text style={styles.calcLabel}>Unused Balance</Text>
+                        <Text style={[styles.calcLabel, { color: theme.colors.textMuted }]}>Unused Balance</Text>
                         <Text
                           style={[
                             styles.calcValue,
-                            unusedBudget > 0 ? { color: THEME.colors.amber } : {},
+                            unusedBudget > 0
+                              ? { color: theme.colors.amber }
+                              : { color: theme.colors.textPrimary },
                           ]}
                         >
                           {formatCurrency(unusedBudget)}
@@ -292,13 +328,13 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
                 <View style={styles.videoTypesSection}>
                   <View style={styles.videoTypesHeader}>
                     <View style={styles.videoTypesTitleGroup}>
-                      <Text style={styles.label}>Video Types</Text>
-                      <Text style={styles.videoTypesSubtitle}>
+                      <Text style={[styles.label, { color: theme.colors.textPrimary }]}>Video Types</Text>
+                      <Text style={[styles.videoTypesSubtitle, { color: theme.colors.textMuted }]}>
                         Select categories for this client's videos
                       </Text>
                     </View>
-                    <View style={styles.selectedCountBadge}>
-                      <Text style={styles.selectedCountText}>
+                    <View style={[styles.selectedCountBadge, { backgroundColor: theme.colors.mintLight }]}>
+                      <Text style={[styles.selectedCountText, { color: theme.colors.mintDark }]}>
                         {selectedTypes.length > 0
                           ? `${selectedTypes.length} selected`
                           : 'Optional'}
@@ -315,6 +351,10 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
                           key={type}
                           style={[
                             styles.chip,
+                            {
+                              backgroundColor: isSelected ? theme.colors.mintLight : theme.colors.backgroundSubtle,
+                              borderColor: isSelected ? theme.colors.mint : theme.colors.borderLight,
+                            },
                             isSelected && styles.chipSelected,
                           ]}
                           onPress={() => handleToggleType(type)}
@@ -325,12 +365,13 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
                           <Ionicons
                             name={isSelected ? 'checkmark-circle' : 'add-circle-outline'}
                             size={14}
-                            color={isSelected ? THEME.colors.mint : THEME.colors.textMuted}
+                            color={isSelected ? theme.colors.mintDark : theme.colors.textMuted}
                             style={{ marginRight: 5 }}
                           />
                           <Text
                             style={[
                               styles.chipText,
+                              { color: isSelected ? theme.colors.mintDark : theme.colors.textPrimary },
                               isSelected && styles.chipTextSelected,
                             ]}
                           >
@@ -343,25 +384,39 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
                     {/* Custom Type Trigger Button */}
                     {!isAddingCustom ? (
                       <PressableScale
-                        style={styles.customTypeTriggerBtn}
+                        style={[
+                          styles.customTypeTriggerBtn,
+                          {
+                            backgroundColor: theme.colors.purpleLight,
+                            borderColor: theme.colors.purpleBorder,
+                          },
+                        ]}
                         onPress={() => setIsAddingCustom(true)}
                         activeScale={0.93}
                         accessibilityRole="button"
                         accessibilityLabel="Add custom video type"
                       >
-                        <Ionicons name="sparkles-outline" size={13} color={THEME.colors.purple} />
-                        <Text style={styles.customTypeTriggerText}>+ Custom Type</Text>
+                        <Ionicons name="sparkles-outline" size={13} color={theme.colors.purple} />
+                        <Text style={[styles.customTypeTriggerText, { color: theme.colors.purpleDark }]}>+ Custom Type</Text>
                       </PressableScale>
                     ) : null}
                   </View>
 
                   {/* Inline Custom Type Input */}
                   {isAddingCustom && (
-                    <View style={styles.customInputRow}>
+                    <View
+                      style={[
+                        styles.customInputRow,
+                        {
+                          backgroundColor: theme.colors.backgroundSubtle,
+                          borderColor: theme.colors.borderLight,
+                        },
+                      ]}
+                    >
                       <TextInput
-                        style={styles.customTextInput}
+                        style={[styles.customTextInput, { color: theme.colors.textPrimary }]}
                         placeholder="Enter custom type (e.g. Drone Video)"
-                        placeholderTextColor={THEME.colors.textMuted}
+                        placeholderTextColor={theme.colors.textMuted}
                         value={customInputText}
                         onChangeText={setCustomInputText}
                         onSubmitEditing={handleAddCustomType}
@@ -369,7 +424,7 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
                         autoFocus
                       />
                       <TouchableOpacity
-                        style={styles.addCustomBtn}
+                        style={[styles.addCustomBtn, { backgroundColor: theme.colors.mint }]}
                         onPress={handleAddCustomType}
                         activeOpacity={0.8}
                       >
@@ -383,7 +438,7 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
                         }}
                         activeOpacity={0.8}
                       >
-                        <Ionicons name="close" size={16} color={THEME.colors.textMuted} />
+                        <Ionicons name="close" size={16} color={theme.colors.textMuted} />
                       </TouchableOpacity>
                     </View>
                   )}
@@ -393,17 +448,23 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({
               {/* Actions Footer */}
               <View style={styles.actionsRow}>
                 <PressableScale
-                  style={styles.cancelButton}
+                  style={[styles.cancelButton, { backgroundColor: theme.colors.backgroundSubtle }]}
                   onPress={handleClose}
                   activeScale={0.94}
                   accessibilityRole="button"
                   accessibilityLabel="Cancel"
                 >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                  <Text style={[styles.cancelButtonText, { color: theme.colors.textMuted }]}>Cancel</Text>
                 </PressableScale>
 
                 <PressableScale
-                  style={styles.saveButton}
+                  style={[
+                    styles.saveButton,
+                    {
+                      backgroundColor: theme.colors.mint,
+                      shadowColor: theme.colors.mint,
+                    },
+                  ]}
                   onPress={handleSave}
                   activeScale={0.94}
                   accessibilityRole="button"

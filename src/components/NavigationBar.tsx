@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { PressableScale } from './PressableScale';
 import { SPRING_PRESETS } from '../utils/motion';
 
@@ -25,6 +26,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 12);
+  const { theme, isDark } = useTheme();
 
   const isHomeActive = currentTab === 'home';
   const isClientsActive = currentTab === 'clients';
@@ -67,19 +69,33 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
   return (
     <View style={[styles.navWrapper, { paddingBottom: bottomInset + 6 }]}>
       <GlassView
-        style={styles.navBar}
-        intensity={55}
+        style={[
+          styles.navBar,
+          {
+            shadowColor: theme.colors.shadowColor,
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.95)',
+          },
+        ]}
+        intensity={isDark ? 65 : 55}
         borderRadius={9999}
         borderWidth={1.5}
-        borderColor="rgba(255, 255, 255, 0.85)"
-        backgroundColor="rgba(255, 255, 255, 0.82)"
+        borderColor={isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.95)'}
+        backgroundColor={isDark ? 'rgba(24, 28, 43, 0.92)' : 'rgba(255, 255, 255, 0.85)'}
       >
         {/* 1. LEFT TAB: Home */}
         <View style={styles.sideTabContainer}>
           <PressableScale
             style={[
               styles.sideTabButton,
-              isHomeActive ? styles.tabButtonActiveHome : styles.tabButtonInactive,
+              isHomeActive
+                ? [styles.tabButtonActiveHome, { backgroundColor: theme.colors.mintLight, borderColor: theme.colors.mintBorder }]
+                : [
+                    styles.tabButtonInactive,
+                    {
+                      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(240, 235, 248, 0.45)',
+                      borderColor: isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(142, 138, 171, 0.15)',
+                    },
+                  ],
             ]}
             onPress={() => onTabChange('home')}
             activeScale={0.94}
@@ -91,13 +107,15 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
               <Ionicons
                 name={isHomeActive ? 'home' : 'home-outline'}
                 size={20}
-                color={isHomeActive ? THEME.colors.mint : THEME.colors.textMuted}
+                color={isHomeActive ? theme.colors.mint : theme.colors.textMuted}
               />
             </Animated.View>
             <Text
               style={[
                 styles.tabLabel,
-                isHomeActive ? styles.tabLabelActiveHome : styles.tabLabelInactive,
+                isHomeActive
+                  ? [styles.tabLabelActiveHome, { color: theme.colors.mintDark }]
+                  : [styles.tabLabelInactive, { color: theme.colors.textMuted }],
               ]}
               numberOfLines={1}
             >
@@ -112,8 +130,22 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
             style={[
               styles.centerVoiceButton,
               isVoiceSelected
-                ? styles.centerVoiceButtonActive
-                : styles.centerVoiceButtonInactive,
+                ? [
+                    styles.centerVoiceButtonActive,
+                    {
+                      backgroundColor: theme.colors.mint,
+                      borderColor: '#FFFFFF',
+                      shadowColor: theme.colors.mint,
+                    },
+                  ]
+                : [
+                    styles.centerVoiceButtonInactive,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.mintBorder,
+                      shadowColor: theme.colors.mint,
+                    },
+                  ],
             ]}
             onPress={() => {
               if (onVoicePress) {
@@ -130,20 +162,24 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
             <View
               style={[
                 styles.voiceInnerRing,
-                isVoiceSelected && styles.voiceInnerRingActive,
+                isVoiceSelected
+                  ? styles.voiceInnerRingActive
+                  : { backgroundColor: theme.colors.mintLight },
               ]}
             >
               <Ionicons
                 name="mic"
                 size={26}
-                color={isVoiceSelected ? '#FFFFFF' : THEME.colors.mint}
+                color={isVoiceSelected ? '#FFFFFF' : theme.colors.mint}
               />
             </View>
           </PressableScale>
           <Text
             style={[
               styles.voiceLabel,
-              isVoiceSelected ? styles.voiceLabelActive : styles.voiceLabelInactive,
+              isVoiceSelected
+                ? [styles.voiceLabelActive, { color: theme.colors.mintDark }]
+                : [styles.voiceLabelInactive, { color: theme.colors.mintDark }],
             ]}
           >
             Voice
@@ -156,8 +192,14 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
             style={[
               styles.sideTabButton,
               isClientsActive
-                ? styles.tabButtonActiveClients
-                : styles.tabButtonInactiveClients,
+                ? [styles.tabButtonActiveClients, { backgroundColor: theme.colors.purpleLight, borderColor: theme.colors.purpleBorder }]
+                : [
+                    styles.tabButtonInactiveClients,
+                    {
+                      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(240, 235, 248, 0.55)',
+                      borderColor: isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(142, 138, 171, 0.18)',
+                    },
+                  ],
             ]}
             onPress={() => onTabChange('clients')}
             activeScale={0.94}
@@ -169,15 +211,15 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
               <Ionicons
                 name={isClientsActive ? 'people' : 'people-outline'}
                 size={20}
-                color={isClientsActive ? THEME.colors.purple : '#8E8AAB'}
+                color={isClientsActive ? theme.colors.purple : theme.colors.textMuted}
               />
             </Animated.View>
             <Text
               style={[
                 styles.tabLabel,
                 isClientsActive
-                  ? styles.tabLabelActiveClients
-                  : styles.tabLabelInactiveClientsText,
+                  ? [styles.tabLabelActiveClients, { color: theme.colors.purpleDark }]
+                  : [styles.tabLabelInactiveClientsText, { color: theme.colors.textMuted }],
               ]}
               numberOfLines={1}
             >
@@ -262,7 +304,8 @@ const styles = StyleSheet.create({
   centerVoiceContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 6,
+    marginHorizontal: 4,
+    minWidth: 46,
     top: -4,
   },
   centerVoiceButton: {
@@ -303,6 +346,8 @@ const styles = StyleSheet.create({
   voiceLabel: {
     fontSize: 10,
     marginTop: 2,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
   voiceLabelInactive: {
     fontWeight: '700',

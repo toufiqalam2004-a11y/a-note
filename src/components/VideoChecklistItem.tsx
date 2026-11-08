@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { VideoItem } from '../types';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { formatCurrency } from '../utils/calculations';
 import { PressableScale } from './PressableScale';
 import { SPRING_PRESETS } from '../utils/motion';
@@ -24,6 +25,7 @@ export const VideoChecklistItem: React.FC<VideoChecklistItemProps> = ({
   onReopen,
   onPressRow,
 }) => {
+  const { theme } = useTheme();
   const checkScale = useRef(new Animated.Value(1)).current;
   const isCompletedRef = useRef(video.isCompleted);
 
@@ -56,7 +58,16 @@ export const VideoChecklistItem: React.FC<VideoChecklistItemProps> = ({
   };
 
   return (
-    <View style={[styles.itemContainer, video.isCompleted && styles.itemCompleted]}>
+    <View
+      style={[
+        styles.itemContainer,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.borderLight,
+        },
+        video.isCompleted && styles.itemCompleted,
+      ]}
+    >
       {/* Tapping row body opens details/options with subtle scale — NEVER toggles completion */}
       <PressableScale
         style={styles.leftGroup}
@@ -69,7 +80,9 @@ export const VideoChecklistItem: React.FC<VideoChecklistItemProps> = ({
         <PressableScale
           style={[
             styles.checkbox,
-            video.isCompleted ? styles.checkboxChecked : styles.checkboxUnchecked,
+            video.isCompleted
+              ? [styles.checkboxChecked, { backgroundColor: theme.colors.mint, borderColor: theme.colors.mint }]
+              : [styles.checkboxUnchecked, { borderColor: theme.colors.borderLight }],
           ]}
           onPress={handleCheckboxPress}
           activeScale={0.86}
@@ -93,12 +106,13 @@ export const VideoChecklistItem: React.FC<VideoChecklistItemProps> = ({
           <Text
             style={[
               styles.videoTitle,
+              { color: theme.colors.textPrimary },
               video.isCompleted && styles.videoTitleCompleted,
             ]}
           >
             Video {video.videoNumber}
           </Text>
-          <Text style={styles.rateSubtitle}>
+          <Text style={[styles.rateSubtitle, { color: theme.colors.textMuted }]}>
             {video.videoType ? `${video.videoType} • ` : ''}
             {video.isCompleted ? 'Completed' : `Pending • ${formatCurrency(ratePerVideo)}`}
           </Text>
@@ -115,19 +129,19 @@ export const VideoChecklistItem: React.FC<VideoChecklistItemProps> = ({
             accessibilityRole="button"
             accessibilityLabel={`Video ${video.videoNumber} completed, tap to reopen`}
           >
-            <View style={styles.donePill}>
-              <Text style={styles.donePillText}>DONE</Text>
+            <View style={[styles.donePill, { backgroundColor: theme.colors.mintLight }]}>
+              <Text style={[styles.donePillText, { color: theme.colors.mintDark }]}>DONE</Text>
             </View>
           </PressableScale>
         ) : (
           <PressableScale
-            style={styles.completeActionBtn}
+            style={[styles.completeActionBtn, { backgroundColor: theme.colors.purpleLight }]}
             onPress={() => (onComplete ? onComplete(video) : onToggle && onToggle(video))}
             activeScale={0.94}
             accessibilityRole="button"
             accessibilityLabel={`Mark Video ${video.videoNumber} complete`}
           >
-            <Text style={styles.actionPrompt}>Mark Complete</Text>
+            <Text style={[styles.actionPrompt, { color: theme.colors.purpleDark }]}>Mark Complete</Text>
           </PressableScale>
         )}
       </View>

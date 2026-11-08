@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ClientWithVideos } from '../types';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { formatCurrency } from '../utils/calculations';
 import { PressableScale } from './PressableScale';
 
@@ -25,28 +26,39 @@ export const RecentClientsCard: React.FC<RecentClientsCardProps> = ({
   onSelectClient,
   onSeeAllPress,
 }) => {
+  const { theme } = useTheme();
+
   return (
     <View style={styles.container}>
       {/* Section Header */}
       <View style={styles.headerRow}>
-        <Text style={styles.sectionTitle}>Recent Clients</Text>
+        <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Recent Clients</Text>
         {onSeeAllPress && (
           <PressableScale
             onPress={onSeeAllPress}
             activeScale={0.93}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={styles.seeAllText}>See All</Text>
+            <Text style={[styles.seeAllText, { color: theme.colors.purple }]}>See All</Text>
           </PressableScale>
         )}
       </View>
 
       {/* Clients Card Container */}
-      <View style={styles.card}>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.borderLight,
+            shadowColor: theme.colors.shadowColor,
+          },
+        ]}
+      >
         {clients.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No Clients Added Yet</Text>
-            <Text style={styles.emptySubtitle}>
+            <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>No Clients Added Yet</Text>
+            <Text style={[styles.emptySubtitle, { color: theme.colors.textMuted }]}>
               Tap &ldquo;+ Add Client&rdquo; above or say &ldquo;New client&rdquo; in Voice Control
             </Text>
           </View>
@@ -62,7 +74,10 @@ export const RecentClientsCard: React.FC<RecentClientsCardProps> = ({
             return (
               <PressableScale
                 key={client.id}
-                style={[styles.clientRow, !isLast && styles.rowDivider]}
+                style={[
+                  styles.clientRow,
+                  !isLast && [styles.rowDivider, { borderBottomColor: theme.colors.borderSubtle }],
+                ]}
                 onPress={() => onSelectClient(client)}
                 activeScale={0.98}
                 accessibilityRole="button"
@@ -75,16 +90,16 @@ export const RecentClientsCard: React.FC<RecentClientsCardProps> = ({
 
                 {/* Client Info */}
                 <View style={styles.infoCol}>
-                  <Text style={styles.clientName}>{client.name}</Text>
-                  <Text style={styles.clientSubtitle}>
+                  <Text style={[styles.clientName, { color: theme.colors.textPrimary }]}>{client.name}</Text>
+                  <Text style={[styles.clientSubtitle, { color: theme.colors.textMuted }]}>
                     {total} {total === 1 ? 'video' : 'videos'} • {formatCurrency(client.ratePerVideo)}/video
                   </Text>
                 </View>
 
                 {/* Progress & Chevron */}
                 <View style={styles.progressCol}>
-                  <Text style={styles.percentText}>{percent}%</Text>
-                  <Ionicons name="chevron-forward" size={16} color={THEME.colors.textMuted} />
+                  <Text style={[styles.percentText, { color: theme.colors.textPrimary }]}>{percent}%</Text>
+                  <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
                 </View>
               </PressableScale>
             );

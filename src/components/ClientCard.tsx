@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ClientWithVideos, VideoItem } from '../types';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { formatCurrency } from '../utils/calculations';
 import { VideoChecklistItem } from './VideoChecklistItem';
 import { ClientHistoryExportModal } from './ClientHistoryExportModal';
@@ -21,6 +22,7 @@ export const ClientCard: React.FC<ClientCardProps> = ({
   onDeleteClient,
   defaultExpanded = false,
 }) => {
+  const { theme } = useTheme();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isHistoryModalVisible, setIsHistoryModalVisible] = useState(false);
   const { calculations, videos } = client;
@@ -46,12 +48,21 @@ export const ClientCard: React.FC<ClientCardProps> = ({
   };
 
   return (
-    <View style={styles.card}>
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.borderLight,
+          shadowColor: theme.colors.shadowColor,
+        },
+      ]}
+    >
       {/* Top Header Row */}
       <View style={styles.headerRow}>
         <View style={styles.nameGroup}>
-          <Text style={styles.clientName}>{client.name}</Text>
-          <Text style={styles.rateSubtitle}>
+          <Text style={[styles.clientName, { color: theme.colors.textPrimary }]}>{client.name}</Text>
+          <Text style={[styles.rateSubtitle, { color: theme.colors.textMuted }]}>
             {formatCurrency(client.ratePerVideo)} / video
           </Text>
         </View>
@@ -65,7 +76,7 @@ export const ClientCard: React.FC<ClientCardProps> = ({
             accessibilityRole="button"
             accessibilityLabel={`Delete ${client.name}`}
           >
-            <Ionicons name="trash-outline" size={16} color={THEME.colors.textMuted} />
+            <Ionicons name="trash-outline" size={16} color={theme.colors.textMuted} />
           </PressableScale>
 
           <PressableScale
@@ -75,73 +86,73 @@ export const ClientCard: React.FC<ClientCardProps> = ({
             accessibilityRole="button"
             accessibilityLabel={isExpanded ? 'Hide Videos' : 'Show Videos'}
           >
-            <Text style={styles.expandToggleText}>
+            <Text style={[styles.expandToggleText, { color: theme.colors.mintDark }]}>
               {isExpanded ? 'Hide Videos' : `Videos (${calculations.completedVideos}/${calculations.totalVideos})`}
             </Text>
             <Ionicons
               name={isExpanded ? 'chevron-up' : 'chevron-down'}
               size={14}
-              color={THEME.colors.mint}
+              color={theme.colors.mint}
             />
           </PressableScale>
         </View>
       </View>
 
       {/* Progress Bar */}
-      <View style={styles.progressContainer}>
-        <View style={[styles.progressBar, { width: `${progressPercent}%` }]} />
+      <View style={[styles.progressContainer, { backgroundColor: theme.colors.backgroundSubtle }]}>
+        <View style={[styles.progressBar, { width: `${progressPercent}%`, backgroundColor: theme.colors.mint }]} />
       </View>
 
       {/* Key Numbers Grid */}
       <View style={styles.statsGrid}>
-        <View style={styles.statBox}>
-          <Text style={styles.statLabel}>Total Budget</Text>
-          <Text style={styles.statValue}>{formatCurrency(client.totalBudget)}</Text>
+        <View style={[styles.statBox, { backgroundColor: theme.colors.backgroundSubtle }]}>
+          <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>Total Budget</Text>
+          <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{formatCurrency(client.totalBudget)}</Text>
         </View>
 
-        <View style={styles.statBox}>
-          <Text style={styles.statLabel}>Total Videos</Text>
-          <Text style={styles.statValue}>
+        <View style={[styles.statBox, { backgroundColor: theme.colors.backgroundSubtle }]}>
+          <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>Total Videos</Text>
+          <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
             {calculations.totalVideos}{' '}
-            <Text style={styles.statUnit}>videos</Text>
+            <Text style={[styles.statUnit, { color: theme.colors.textMuted }]}>videos</Text>
           </Text>
         </View>
 
-        <View style={styles.statBox}>
-          <Text style={styles.statLabel}>Completed</Text>
-          <Text style={[styles.statValue, { color: THEME.colors.mint }]}>
+        <View style={[styles.statBox, { backgroundColor: theme.colors.backgroundSubtle }]}>
+          <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>Completed</Text>
+          <Text style={[styles.statValue, { color: theme.colors.mint }]}>
             {calculations.completedVideos}
           </Text>
         </View>
 
-        <View style={styles.statBox}>
-          <Text style={styles.statLabel}>Remaining</Text>
-          <Text style={styles.statValue}>{calculations.remainingVideos}</Text>
+        <View style={[styles.statBox, { backgroundColor: theme.colors.backgroundSubtle }]}>
+          <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>Remaining</Text>
+          <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{calculations.remainingVideos}</Text>
         </View>
       </View>
 
       {/* Financials & Unused Budget Row */}
       <View style={styles.financialRow}>
         <View style={styles.finPill}>
-          <Text style={styles.finPillLabel}>Completed Value:</Text>
-          <Text style={[styles.finPillVal, { color: THEME.colors.mint }]}>
+          <Text style={[styles.finPillLabel, { color: theme.colors.textMuted }]}>Completed Value:</Text>
+          <Text style={[styles.finPillVal, { color: theme.colors.mint }]}>
             {formatCurrency(calculations.completedValue)}
           </Text>
         </View>
 
         <View style={styles.finPill}>
-          <Text style={styles.finPillLabel}>Remaining Value:</Text>
-          <Text style={styles.finPillVal}>
+          <Text style={[styles.finPillLabel, { color: theme.colors.textMuted }]}>Remaining Value:</Text>
+          <Text style={[styles.finPillVal, { color: theme.colors.textPrimary }]}>
             {formatCurrency(calculations.remainingValue)}
           </Text>
         </View>
 
         {calculations.unusedBudget > 0 && (
-          <View style={[styles.finPill, styles.unusedPill]}>
-            <Text style={[styles.finPillLabel, { color: THEME.colors.amber }]}>
+          <View style={[styles.finPill, styles.unusedPill, { backgroundColor: theme.colors.amberLight }]}>
+            <Text style={[styles.finPillLabel, { color: theme.colors.amber }]}>
               Unused Budget:
             </Text>
-            <Text style={[styles.finPillVal, { color: THEME.colors.amber }]}>
+            <Text style={[styles.finPillVal, { color: theme.colors.amber }]}>
               {formatCurrency(calculations.unusedBudget)}
             </Text>
           </View>
@@ -151,30 +162,30 @@ export const ClientCard: React.FC<ClientCardProps> = ({
       {/* History & Export Action Button */}
       <View style={styles.cardActionsRow}>
         <PressableScale
-          style={styles.historyExportBtn}
+          style={[styles.historyExportBtn, { backgroundColor: theme.colors.mintLight }]}
           onPress={() => setIsHistoryModalVisible(true)}
           activeScale={0.96}
           accessibilityRole="button"
           accessibilityLabel={`History and reports for ${client.name}`}
         >
-          <Ionicons name="document-text-outline" size={14} color={THEME.colors.mint} />
-          <Text style={styles.historyExportBtnText}>History & Reports (PDF / XLSX)</Text>
+          <Ionicons name="document-text-outline" size={14} color={theme.colors.mintDark} />
+          <Text style={[styles.historyExportBtnText, { color: theme.colors.mintDark }]}>History & Reports (PDF / XLSX)</Text>
         </PressableScale>
       </View>
 
       {/* Expandable Video Checklist */}
       {isExpanded && (
         <View style={styles.checklistSection}>
-          <View style={styles.checklistDivider} />
+          <View style={[styles.checklistDivider, { backgroundColor: theme.colors.borderSubtle }]} />
           <View style={styles.checklistHeader}>
-            <Text style={styles.checklistTitle}>Video Delivery Checklist</Text>
-            <Text style={styles.checklistHint}>
+            <Text style={[styles.checklistTitle, { color: theme.colors.textPrimary }]}>Video Delivery Checklist</Text>
+            <Text style={[styles.checklistHint, { color: theme.colors.textMuted }]}>
               Tap to mark done or say: &ldquo;{client.name}, video 1 done&rdquo;
             </Text>
           </View>
 
           {videos.length === 0 ? (
-            <Text style={styles.emptyVideosText}>
+            <Text style={[styles.emptyVideosText, { color: theme.colors.textMuted }]}>
               No videos generated. Budget is less than per-video rate.
             </Text>
           ) : (

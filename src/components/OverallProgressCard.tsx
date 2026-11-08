@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 
 interface OverallProgressCardProps {
   completedVideos: number;
@@ -11,6 +12,7 @@ export const OverallProgressCard: React.FC<OverallProgressCardProps> = ({
   completedVideos,
   totalVideos,
 }) => {
+  const { theme } = useTheme();
   const percentage =
     totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
 
@@ -31,20 +33,37 @@ export const OverallProgressCard: React.FC<OverallProgressCardProps> = ({
   });
 
   return (
-    <View style={styles.card}>
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.borderLight,
+          shadowColor: theme.colors.shadowColor,
+        },
+      ]}
+    >
       {/* Top Header Row */}
       <View style={styles.headerRow}>
-        <Text style={styles.title}>Overall Progress</Text>
-        <Text style={styles.percentText}>{percentage}%</Text>
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Overall Progress</Text>
+        <Text style={[styles.percentText, { color: theme.colors.textPrimary }]}>{percentage}%</Text>
       </View>
 
       {/* Progress Track */}
-      <View style={styles.track}>
-        <Animated.View style={[styles.fill, { width: animatedWidth }]} />
+      <View style={[styles.track, { backgroundColor: theme.colors.backgroundSubtle }]}>
+        <Animated.View
+          style={[
+            styles.fill,
+            {
+              width: animatedWidth,
+              backgroundColor: theme.colors.mint,
+            },
+          ]}
+        />
       </View>
 
       {/* Subtitle */}
-      <Text style={styles.subtitle}>
+      <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
         {completedVideos} of {totalVideos} {totalVideos === 1 ? 'video' : 'videos'} completed
       </Text>
     </View>

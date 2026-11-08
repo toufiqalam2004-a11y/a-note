@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Animated, AccessibilityInfo } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { PressableScale } from './PressableScale';
 import { getTimeOfDayGreeting } from '../services/userProfileService';
 
@@ -22,6 +23,7 @@ export const WelcomeCard: React.FC<WelcomeCardProps> = ({
   onHowItWorks,
   onEditProfile,
 }) => {
+  const { theme } = useTheme();
   const floatAnim = useRef(new Animated.Value(0)).current;
   const [reduceMotion, setReduceMotion] = useState(false);
 
@@ -75,55 +77,98 @@ export const WelcomeCard: React.FC<WelcomeCardProps> = ({
   }
 
   return (
-    <View style={styles.card}>
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.borderLight,
+          shadowColor: theme.colors.shadowColor,
+        },
+      ]}
+    >
       {/* Left Message Column */}
       <View style={styles.textColumn}>
-        {/* Optional Studio / Business Name subtle secondary badge */}
+        {/* Optional Studio / Business Name responsive badge */}
         {isPersonalized && studioName && studioName.trim() ? (
-          <View style={styles.studioPill}>
-            <Ionicons name="sparkles" size={10} color={THEME.colors.purple} />
-            <Text style={styles.studioText} numberOfLines={1}>
+          <PressableScale
+            style={[
+              styles.studioPill,
+              {
+                backgroundColor: theme.colors.purpleLight,
+                borderColor: theme.colors.purpleBorder,
+              },
+            ]}
+            onPress={onEditProfile}
+            activeScale={0.96}
+            accessibilityRole="button"
+            accessibilityLabel={`Studio: ${studioName.trim()}`}
+          >
+            <Ionicons name="sparkles" size={10.5} color={theme.colors.purple} />
+            <Text
+              style={[styles.studioText, { color: theme.colors.purpleDark }]}
+            >
               {studioName.trim()}
             </Text>
-          </View>
+          </PressableScale>
         ) : null}
 
         <View style={styles.greetingRow}>
-          <Text style={styles.greetingText} numberOfLines={1}>
+          <Text
+            style={[styles.greetingText, { color: theme.colors.textPrimary }]}
+            numberOfLines={1}
+          >
             {greeting}
           </Text>
           <Text style={styles.waveEmoji}>👋</Text>
         </View>
 
-        <Text style={styles.subtitleText} numberOfLines={1}>
+        <Text
+          style={[styles.subtitleText, { color: theme.colors.textMuted }]}
+          numberOfLines={1}
+        >
           {subtitle}
         </Text>
 
         <View style={styles.chipsRow}>
           {onHowItWorks && (
             <PressableScale
-              style={styles.howItWorksChip}
+              style={[
+                styles.howItWorksChip,
+                {
+                  backgroundColor: theme.colors.mintLight,
+                  borderColor: theme.colors.mintBorder,
+                },
+              ]}
               onPress={onHowItWorks}
               activeScale={0.94}
               accessibilityRole="button"
               accessibilityLabel="How A Note Works"
             >
-              <Ionicons name="bulb-outline" size={13} color={THEME.colors.mintDark} />
-              <Text style={styles.howItWorksText}>How It Works</Text>
+              <Ionicons name="bulb-outline" size={12} color={theme.colors.mintDark} />
+              <Text style={[styles.howItWorksText, { color: theme.colors.mintDark }]}>
+                How It Works
+              </Text>
             </PressableScale>
           )}
 
           {onEditProfile && (
             <PressableScale
-              style={styles.profileChip}
+              style={[
+                styles.profileChip,
+                {
+                  backgroundColor: theme.colors.purpleLight,
+                  borderColor: theme.colors.purpleBorder,
+                },
+              ]}
               onPress={onEditProfile}
               activeScale={0.94}
               accessibilityRole="button"
               accessibilityLabel="Edit Workspace Profile"
             >
-              <Ionicons name="pencil-outline" size={11} color={THEME.colors.purple} />
-              <Text style={styles.profileChipText}>
-                {isPersonalized ? 'Edit Profile' : 'Personalize'}
+              <Ionicons name="pencil-outline" size={11} color={theme.colors.purple} />
+              <Text style={[styles.profileChipText, { color: theme.colors.purpleDark }]}>
+                Edit
               </Text>
             </PressableScale>
           )}
@@ -170,9 +215,9 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    marginHorizontal: THEME.spacing.lg,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginHorizontal: THEME.spacing.md,
     marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -187,26 +232,29 @@ const styles = StyleSheet.create({
   },
   textColumn: {
     flex: 1,
-    paddingRight: 10,
+    paddingRight: 6,
+    justifyContent: 'center',
   },
   studioPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FAF7FF',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
     alignSelf: 'flex-start',
+    gap: 4.5,
+    backgroundColor: '#FAF7FF',
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 8,
     marginBottom: 4,
     borderWidth: 1,
     borderColor: '#EDE7F9',
+    maxWidth: '100%',
   },
   studioText: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '700',
     color: THEME.colors.purple,
-    letterSpacing: 0.2,
+    includeFontPadding: false,
+    flexShrink: 1,
   },
   greetingRow: {
     flexDirection: 'row',
@@ -233,47 +281,56 @@ const styles = StyleSheet.create({
   chipsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    rowGap: 5,
     marginTop: 8,
+    flexWrap: 'wrap',
   },
   howItWorksChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     gap: 4,
     backgroundColor: THEME.colors.mintLight,
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
+    paddingVertical: 4,
+    borderRadius: 9,
     borderWidth: 1,
     borderColor: 'rgba(0, 210, 135, 0.25)',
+    flexShrink: 0,
   },
   howItWorksText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: THEME.colors.mintDark,
+    includeFontPadding: false,
   },
   profileChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    alignSelf: 'flex-start',
+    gap: 3.5,
     backgroundColor: '#F5F1FD',
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
+    paddingVertical: 4,
+    borderRadius: 9,
     borderWidth: 1,
     borderColor: 'rgba(124, 92, 252, 0.22)',
+    flexShrink: 0,
   },
   profileChipText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: THEME.colors.purple,
+    includeFontPadding: false,
   },
   illustrationContainer: {
-    width: 86,
-    height: 76,
+    width: 72,
+    height: 72,
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'flex-end',
+    flexShrink: 0,
   },
   floatingCamBadge: {
     position: 'absolute',
@@ -295,8 +352,8 @@ const styles = StyleSheet.create({
   avatarWrapper: {
     alignItems: 'center',
     justifyContent: 'flex-end',
-    width: 70,
-    height: 70,
+    width: 64,
+    height: 64,
   },
   characterHead: {
     width: 36,

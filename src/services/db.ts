@@ -672,33 +672,36 @@ export async function toggleVideoStatus(
         }
       }
 
-      // 2. Perform safe update
-      await db.runAsync(
-        'UPDATE videos SET is_completed = ?, completed_at = ? WHERE id = ?;',
-        newCompletedStatus ? 1 : 0,
-        completedAt,
-        videoId
-      );
-
-      if (newCompletedStatus) {
-        const histId = 'hist_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
-        const today = new Date().toISOString().split('T')[0];
+      // 2. Perform safe atomic update inside SQLite transaction
+      await db.withTransactionAsync(async () => {
         await db.runAsync(
-          'INSERT INTO completion_history (id, client_id, client_name, video_id, video_number, completed_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?);',
-          histId,
-          clientId,
-          clientName,
-          videoId,
-          videoNumber,
-          today,
-          completedAt!
+          'UPDATE videos SET is_completed = ?, completed_at = ? WHERE id = ?;',
+          newCompletedStatus ? 1 : 0,
+          completedAt,
+          videoId
         );
-      } else {
-        // Unmarking video: remove record from completion history
-        await db.runAsync('DELETE FROM completion_history WHERE video_id = ?;', videoId);
-      }
+
+        if (newCompletedStatus) {
+          const histId = 'hist_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+          const today = new Date().toISOString().split('T')[0];
+          await db.runAsync(
+            'INSERT INTO completion_history (id, client_id, client_name, video_id, video_number, completed_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?);',
+            histId,
+            clientId,
+            clientName,
+            videoId,
+            videoNumber,
+            today,
+            completedAt!
+          );
+        } else {
+          // Unmarking video: remove record from completion history
+          await db.runAsync('DELETE FROM completion_history WHERE video_id = ?;', videoId);
+        }
+      });
     } catch (e) {
       console.warn('[EditFlow DB] Error toggling video status:', e);
+      throw e;
     }
   }
 

@@ -14,6 +14,7 @@ import {
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from './src/constants/theme';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import {
   ClientWithVideos,
   DashboardSummary,
@@ -54,13 +55,15 @@ import {
   UserProfile,
   getUserProfile,
   shouldShowOnboarding,
+  skipOnboarding,
 } from './src/services/userProfileService';
 import { BackupRestoreModal } from './src/components/BackupRestoreModal';
 import { AppMenuModal } from './src/components/AppMenuModal';
 import { DataManagementModal } from './src/components/DataManagementModal';
 import { PressableScale } from './src/components/PressableScale';
 
-export default function App() {
+function AppContent() {
+  const { theme, isDark } = useTheme();
   const [clients, setClients] = useState<ClientWithVideos[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -257,19 +260,38 @@ export default function App() {
         return true;
       }
 
-      // 7. Return from Client Details screen to previous screen
+      // 7. Dismiss Profile Settings modal if open
+      if (isProfileSettingsVisible) {
+        setIsProfileSettingsVisible(false);
+        return true;
+      }
+
+      // 8. Dismiss Intro / How It Works modal if open
+      if (isIntroVisible) {
+        setIsIntroVisible(false);
+        return true;
+      }
+
+      // 9. Dismiss Onboarding modal if open (safely skips onboarding)
+      if (isOnboardingVisible) {
+        setIsOnboardingVisible(false);
+        skipOnboarding().catch(() => {});
+        return true;
+      }
+
+      // 10. Return from Client Details screen to previous screen
       if (selectedClient) {
         setSelectedClient(null);
         return true;
       }
 
-      // 8. Return from Clients tab to Home tab
+      // 11. Return from Clients tab to Home tab
       if (activeTab !== 'home') {
         setActiveTab('home');
         return true;
       }
 
-      // 9. On Home screen, safe exit behavior (double tap within 2000ms)
+      // 12. On Home screen, safe exit behavior (double tap within 2000ms)
       const now = Date.now();
       if (now - lastBackPressTimeRef.current < 2000) {
         BackHandler.exitApp();
@@ -294,6 +316,9 @@ export default function App() {
     isGlobalExportVisible,
     isVoiceAssistantVisible,
     isAddClientVisible,
+    isProfileSettingsVisible,
+    isIntroVisible,
+    isOnboardingVisible,
     selectedClient,
     activeTab,
   ]);
@@ -365,6 +390,7 @@ export default function App() {
     } catch (err) {
       console.warn('Error completing video:', err);
       showNotification('Failed to complete video', true);
+      loadData().catch(() => {});
     } finally {
       updatingVideoIdsRef.current.delete(video.id);
     }
@@ -430,6 +456,7 @@ export default function App() {
     } catch (err) {
       console.warn('Error reopening video:', err);
       showNotification('Failed to reopen video', true);
+      loadData().catch(() => {});
     } finally {
       updatingVideoIdsRef.current.delete(video.id);
     }
@@ -514,315 +541,452 @@ export default function App() {
   const dashboardSummary: DashboardSummary = calculateDashboardSummary(clients);
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <StatusBar barStyle="dark-content" backgroundColor="#F0EBF8" />
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: theme.colors.background }]}
+      edges={['top', 'left', 'right']}
+    >
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.colors.background}
+      />
 
-        {/* Global Toast Notification */}
-        <VoiceToast
-          message={toastMessage}
-          isError={toastIsError}
-          onDismiss={() => setToastMessage(null)}
+      {/* Global Toast Notification */}
+      <VoiceToast
+        message={toastMessage}
+        isError={toastIsError}
+        onDismiss={() => setToastMessage(null)}
+      />
+
+      {/* Screen 2: Client Details Screen (Shown when a client is tapped) */}
+      {selectedClient ? (
+        <ClientDetailsScreen
+          client={selectedClient}
+          onBack={() => setSelectedClient(null)}
+          onToggleVideo={handleToggleVideo}
+          onCompleteVideo={handleCompleteVideo}
+          onReopenVideo={handleReopenVideo}
+          onOpenVoice={() => setIsVoiceAssistantVisible(true)}
+          onDeleteClient={handleDeleteClient}
+          onEditClient={(c) => {
+            setClientToEdit(c);
+            setIsAddClientVisible(true);
+          }}
+          onUpdateVideoType={handleUpdateVideoType}
         />
-
-        {/* Screen 2: Client Details Screen (Shown when a client is tapped) */}
-        {selectedClient ? (
-          <ClientDetailsScreen
-            client={selectedClient}
-            onBack={() => setSelectedClient(null)}
-            onToggleVideo={handleToggleVideo}
-            onCompleteVideo={handleCompleteVideo}
-            onReopenVideo={handleReopenVideo}
-            onOpenVoice={() => setIsVoiceAssistantVisible(true)}
-            onDeleteClient={handleDeleteClient}
-            onEditClient={(c) => {
-              setClientToEdit(c);
-              setIsAddClientVisible(true);
+      ) : (
+        /* Main Views */
+        <View style={[styles.mainContainer, { backgroundColor: theme.colors.background }]}>
+          {/* Header matching Screen 1 */}
+          <Header
+            onMenuPress={() => setIsAppMenuVisible(true)}
+            onNotificationPress={() => {
+              showNotification(`You have ${dashboardSummary.remainingVideos} pending videos across all clients.`);
             }}
-            onUpdateVideoType={handleUpdateVideoType}
           />
-        ) : (
-          /* Main Views */
-          <View style={styles.mainContainer}>
-            {/* Header matching Screen 1 */}
-            <Header
-              onMenuPress={() => setIsAppMenuVisible(true)}
-              onNotificationPress={() => {
-                showNotification(`You have ${dashboardSummary.remainingVideos} pending videos across all clients.`);
-              }}
-            />
 
-            {isLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={THEME.colors.mint} />
-                <Text style={styles.loadingText}>Loading A Note...</Text>
-              </View>
-            ) : (
-              <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                refreshControl={
-                  <RefreshControl
-                    refreshing={isRefreshing}
-                    onRefresh={handleRefresh}
-                    tintColor={THEME.colors.mint}
-                    colors={[THEME.colors.mint]}
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={theme.colors.mint} />
+              <Text style={[styles.loadingText, { color: theme.colors.textMuted }]}>Loading A Note...</Text>
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={isRefreshing}
+                  onRefresh={handleRefresh}
+                  tintColor={theme.colors.mint}
+                  colors={[theme.colors.mint]}
+                />
+              }
+            >
+              {activeTab === 'home' && (
+                <>
+                  {/* Personalized Welcome Card */}
+                  <WelcomeCard
+                    userName={userProfile?.displayName || 'Toufiq'}
+                    studioName={userProfile?.studioName}
+                    profession={userProfile?.profession}
+                    isPersonalized={Boolean(userProfile?.displayName)}
+                    onHowItWorks={() => setIsIntroVisible(true)}
+                    onEditProfile={() => setIsProfileSettingsVisible(true)}
                   />
-                }
-              >
-                {activeTab === 'home' && (
-                  <>
-                    {/* Personalized Welcome Card */}
-                    <WelcomeCard
-                      userName={userProfile?.displayName || 'Toufiq'}
-                      studioName={userProfile?.studioName}
-                      profession={userProfile?.profession}
-                      isPersonalized={Boolean(userProfile?.displayName)}
-                      onHowItWorks={() => setIsIntroVisible(true)}
-                      onEditProfile={() => setIsProfileSettingsVisible(true)}
-                    />
 
-                    {clients.length === 0 ? (
-                      <View style={styles.emptyHomeContainer}>
-                        <View style={styles.emptyHomeCard}>
-                          <View style={styles.emptyIconCircle}>
-                            <Ionicons name="sparkles" size={32} color={THEME.colors.mint} />
-                          </View>
-                          <Text style={styles.emptyHomeTitle}>Welcome to A Note</Text>
-                          <Text style={styles.emptyHomeSubtitle}>
-                            Track client video delivery quotas, reconcile advance payments, and generate official PDF/Excel reports offline.
-                          </Text>
-
-                          <PressableScale
-                            style={styles.addFirstClientButton}
-                            onPress={() => setIsAddClientVisible(true)}
-                            activeScale={0.95}
-                            accessibilityRole="button"
-                            accessibilityLabel="Add Your First Client"
-                          >
-                            <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-                            <Text style={styles.addFirstClientText}>Add Your First Client</Text>
-                          </PressableScale>
-
-                          <TouchableOpacity
-                            style={styles.howItWorksButtonSecondary}
-                            onPress={() => setIsIntroVisible(true)}
-                            activeOpacity={0.7}
-                          >
-                            <Ionicons name="bulb-outline" size={16} color={THEME.colors.mintDark} />
-                            <Text style={styles.howItWorksButtonText}>How It Works (Guide)</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ) : (
-                      <>
-                        {/* Overall Progress Card matching Screen 1 */}
-                        <OverallProgressCard
-                          completedVideos={dashboardSummary.completedVideos}
-                          totalVideos={dashboardSummary.totalVideos}
-                        />
-
-                        {/* 2x2 Statistics Cards Grid matching Screen 1 */}
-                        <DashboardSummaryCards
-                          summary={dashboardSummary}
-                          clientCount={clients.length}
-                        />
-
-                        {/* Primary Mint Green 3D "+ Add Client" Button matching Screen 1 */}
-                        <View style={styles.addClientBtnContainer}>
-                          <PressableScale
-                            style={styles.largeMintAddButton}
-                            onPress={() => setIsAddClientVisible(true)}
-                            activeScale={0.96}
-                            accessibilityRole="button"
-                            accessibilityLabel="Add Client"
-                          >
-                            <View style={styles.addBtnInnerRow}>
-                              <Ionicons name="add" size={22} color="#FFFFFF" />
-                              <Text style={styles.largeMintAddText}>Add Client</Text>
-                            </View>
-                            <View style={styles.arrowCircleBadge}>
-                              <Ionicons name="arrow-forward" size={16} color={THEME.colors.mint} />
-                            </View>
-                          </PressableScale>
-                        </View>
-
-                        {/* Recent Clients Section matching Screen 1 */}
-                        <RecentClientsCard
-                          clients={clients}
-                          onSelectClient={(client) => setSelectedClient(client)}
-                          onSeeAllPress={() => setActiveTab('clients')}
-                        />
-                      </>
-                    )}
-                  </>
-                )}
-
-                {activeTab === 'clients' && (
-                  <View style={styles.clientsTabContainer}>
-                    <View style={styles.tabHeadingRow}>
-                      <Text style={styles.tabTitle}>Clients Directory</Text>
-                      <Text style={styles.tabSubtitle}>
-                        {clients.length} {clients.length === 1 ? 'client' : 'clients'} active
-                      </Text>
-                    </View>
-
-                    {clients.length === 0 ? (
-                      <View style={styles.emptyCard}>
-                        <Ionicons name="people-outline" size={36} color={THEME.colors.purple} />
-                        <Text style={styles.emptyTitle}>No Clients Yet</Text>
-                        <Text style={styles.emptySubtitle}>
-                          Tap &ldquo;+ Add Client&rdquo; to start tracking deliveries.
-                        </Text>
-                      </View>
-                    ) : (
-                      clients.map((c) => {
-                        const total = c.calculations.totalVideos;
-                        const done = c.calculations.completedVideos;
-                        const percent = total > 0 ? Math.round((done / total) * 100) : 0;
-
-                        return (
-                          <PressableScale
-                            key={c.id}
-                            style={styles.clientDirectoryCard}
-                            onPress={() => setSelectedClient(c)}
-                            activeScale={0.98}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${c.name}, ${done} of ${total} videos completed`}
-                          >
-                            <View style={styles.clientCardHeader}>
-                              <View style={styles.clientAvatarPurple}>
-                                <Text style={styles.clientAvatarText}>
-                                  {(c.name || 'C').charAt(0).toUpperCase()}
-                                </Text>
-                              </View>
-                              <View style={styles.clientCardInfo}>
-                                <Text style={styles.clientCardName}>{c.name}</Text>
-                                <Text style={styles.clientCardSubtitle}>
-                                  {formatCurrency(c.ratePerVideo)}/video &bull; {total} videos
-                                </Text>
-                              </View>
-                              <View style={styles.clientCardBadge}>
-                                <Text style={styles.clientCardPercent}>{percent}%</Text>
-                                <Ionicons name="chevron-forward" size={16} color={THEME.colors.textMuted} />
-                              </View>
-                            </View>
-
-                            {/* Mini Progress Track */}
-                            <View style={styles.miniTrack}>
-                              <View style={[styles.miniFill, { width: `${percent}%` }]} />
-                            </View>
-
-                            <View style={styles.clientCardFooter}>
-                              <Text style={styles.footerEarned}>
-                                {done}/{total} done ({formatCurrency(c.calculations.completedValue)})
-                              </Text>
-                              <Text style={styles.footerUnused}>
-                                Unused: {formatCurrency(c.calculations.unusedBudget)}
-                              </Text>
-                            </View>
-                          </PressableScale>
-                        );
-                      })
-                    )}
-                  </View>
-                )}
-
-                {activeTab === 'reports' && (
-                  <View style={styles.reportsTabContainer}>
-                    <View style={styles.tabHeadingRow}>
-                      <Text style={styles.tabTitle}>Financial & Delivery Reports</Text>
-                      <Text style={styles.tabSubtitle}>Export valid PDF & Excel reports</Text>
-                    </View>
-
-                    {clients.map((c) => (
-                      <View key={c.id} style={styles.reportItemCard}>
-                        <View style={styles.reportItemHeader}>
-                          <View>
-                            <Text style={styles.reportClientName}>{c.name}</Text>
-                            <Text style={styles.reportClientMeta}>
-                              Budget: {formatCurrency(c.totalBudget)} &bull; {c.calculations.completedVideos}/{c.calculations.totalVideos} videos delivered
-                            </Text>
-                          </View>
-                        </View>
-                        <TouchableOpacity
-                          style={styles.reportExportBtn}
-                          onPress={() => {
-                            setClientForExport(c);
-                            setIsGlobalExportVisible(true);
-                          }}
-                          activeOpacity={0.8}
+                  {clients.length === 0 ? (
+                    <View style={styles.emptyHomeContainer}>
+                      <View
+                        style={[
+                          styles.emptyHomeCard,
+                          {
+                            backgroundColor: theme.colors.surface,
+                            borderColor: theme.colors.borderLight,
+                            shadowColor: theme.colors.shadowColor,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.emptyIconCircle,
+                            {
+                              backgroundColor: theme.colors.mintLight,
+                              borderColor: theme.colors.mintBorder,
+                            },
+                          ]}
                         >
-                          <Ionicons name="document-text-outline" size={16} color="#FFFFFF" />
-                          <Text style={styles.reportExportBtnText}>Generate Report (PDF / XLSX)</Text>
+                          <Ionicons name="sparkles" size={32} color={theme.colors.mint} />
+                        </View>
+                        <Text style={[styles.emptyHomeTitle, { color: theme.colors.textPrimary }]}>Welcome to A Note</Text>
+                        <Text style={[styles.emptyHomeSubtitle, { color: theme.colors.textMuted }]}>
+                          Track client video delivery quotas, reconcile advance payments, and generate official PDF/Excel reports offline.
+                        </Text>
+
+                        <PressableScale
+                          style={[
+                            styles.addFirstClientButton,
+                            {
+                              backgroundColor: theme.colors.mint,
+                              shadowColor: theme.colors.mint,
+                            },
+                          ]}
+                          onPress={() => setIsAddClientVisible(true)}
+                          activeScale={0.95}
+                          accessibilityRole="button"
+                          accessibilityLabel="Add Your First Client"
+                        >
+                          <Ionicons name="add-circle" size={20} color="#FFFFFF" />
+                          <Text style={styles.addFirstClientText}>Add Your First Client</Text>
+                        </PressableScale>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.howItWorksButtonSecondary,
+                            { backgroundColor: theme.colors.mintLight },
+                          ]}
+                          onPress={() => setIsIntroVisible(true)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="bulb-outline" size={16} color={theme.colors.mintDark} />
+                          <Text style={[styles.howItWorksButtonText, { color: theme.colors.mintDark }]}>How It Works (Guide)</Text>
                         </TouchableOpacity>
                       </View>
-                    ))}
-                  </View>
-                )}
-
-                {activeTab === 'more' && (
-                  <View style={styles.moreTabContainer}>
-                    <View style={styles.tabHeadingRow}>
-                      <Text style={styles.tabTitle}>Settings & Diagnostics</Text>
-                      <Text style={styles.tabSubtitle}>A Note v1.0.0 Claymorphism</Text>
                     </View>
+                  ) : (
+                    <>
+                      {/* Overall Progress Card matching Screen 1 */}
+                      <OverallProgressCard
+                        completedVideos={dashboardSummary.completedVideos}
+                        totalVideos={dashboardSummary.totalVideos}
+                      />
 
-                    <View style={styles.moreCard}>
-                      <Text style={styles.moreCardTitle}>App Capabilities</Text>
-                      <View style={styles.moreRow}>
-                        <Ionicons name="server-outline" size={18} color={THEME.colors.mint} />
-                        <Text style={styles.moreRowText}>SQLite Offline Local Storage</Text>
-                        <Text style={styles.moreBadge}>ACTIVE</Text>
-                      </View>
-                      <View style={styles.moreRow}>
-                        <Ionicons name="mic-outline" size={18} color={THEME.colors.purple} />
-                        <Text style={styles.moreRowText}>Native Voice Recognition</Text>
-                        <Text style={styles.moreBadge}>READY</Text>
-                      </View>
-                      <View style={styles.moreRow}>
-                        <Ionicons name="document-outline" size={18} color={THEME.colors.mint} />
-                        <Text style={styles.moreRowText}>PDF & Excel (.xlsx) Engine</Text>
-                        <Text style={styles.moreBadge}>GENUINE &amp; VERIFIED</Text>
-                      </View>
-                    </View>
+                      {/* 2x2 Statistics Cards Grid matching Screen 1 */}
+                      <DashboardSummaryCards
+                        summary={dashboardSummary}
+                        clientCount={clients.length}
+                      />
 
-                    {/* Data Management & Settings Entry */}
-                    <TouchableOpacity
-                      style={[styles.moreBackupBtn, { marginBottom: 10 }]}
-                      onPress={() => setIsDataManagementVisible(true)}
-                      activeOpacity={0.8}
-                    >
-                      <View style={[styles.moreBackupIconBox, { backgroundColor: '#EDE8FD' }]}>
-                        <Ionicons name="server" size={20} color={THEME.colors.purple} />
+                      {/* Primary Mint Green 3D "+ Add Client" Button matching Screen 1 */}
+                      <View style={styles.addClientBtnContainer}>
+                        <PressableScale
+                          style={[
+                            styles.largeMintAddButton,
+                            {
+                              backgroundColor: theme.colors.mint,
+                              shadowColor: theme.colors.mint,
+                            },
+                          ]}
+                          onPress={() => setIsAddClientVisible(true)}
+                          activeScale={0.96}
+                          accessibilityRole="button"
+                          accessibilityLabel="Add Client"
+                        >
+                          <View style={styles.addBtnInnerRow}>
+                            <Ionicons name="add" size={22} color="#FFFFFF" />
+                            <Text style={styles.largeMintAddText}>Add Client</Text>
+                          </View>
+                          <View style={styles.arrowCircleBadge}>
+                            <Ionicons name="arrow-forward" size={16} color={theme.colors.mint} />
+                          </View>
+                        </PressableScale>
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.moreBackupTitle}>Data Management &amp; Settings</Text>
-                        <Text style={styles.moreBackupDesc}>Backup &bull; Restore &bull; Delete All App Data</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
-                    </TouchableOpacity>
 
-                    {/* Local Backup & Restore Entry */}
-                    <TouchableOpacity
-                      style={styles.moreBackupBtn}
-                      onPress={() => setIsBackupRestoreVisible(true)}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.moreBackupIconBox}>
-                        <Ionicons name="save-outline" size={20} color="#00D287" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.moreBackupTitle}>Local Backup &amp; Restore</Text>
-                        <Text style={styles.moreBackupDesc}>Export or restore your offline database</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
-                    </TouchableOpacity>
+                      {/* Recent Clients Section matching Screen 1 */}
+                      <RecentClientsCard
+                        clients={clients}
+                        onSelectClient={(client) => setSelectedClient(client)}
+                        onSeeAllPress={() => setActiveTab('clients')}
+                      />
+                    </>
+                  )}
+                </>
+              )}
+
+              {activeTab === 'clients' && (
+                <View style={styles.clientsTabContainer}>
+                  <View style={styles.tabHeadingRow}>
+                    <Text style={[styles.tabTitle, { color: theme.colors.textPrimary }]}>Clients Directory</Text>
+                    <Text style={[styles.tabSubtitle, { color: theme.colors.textMuted }]}>
+                      {clients.length} {clients.length === 1 ? 'client' : 'clients'} active
+                    </Text>
                   </View>
-                )}
 
-                <View style={{ height: 120 }} />
+                  {clients.length === 0 ? (
+                    <View
+                      style={[
+                        styles.emptyCard,
+                        {
+                          backgroundColor: theme.colors.surface,
+                          borderColor: theme.colors.borderLight,
+                        },
+                      ]}
+                    >
+                      <Ionicons name="people-outline" size={36} color={theme.colors.purple} />
+                      <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>No Clients Yet</Text>
+                      <Text style={[styles.emptySubtitle, { color: theme.colors.textMuted }]}>
+                        Tap &ldquo;+ Add Client&rdquo; to start tracking deliveries.
+                      </Text>
+                    </View>
+                  ) : (
+                    clients.map((c) => {
+                      const total = c.calculations.totalVideos;
+                      const done = c.calculations.completedVideos;
+                      const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+
+                      return (
+                        <PressableScale
+                          key={c.id}
+                          style={[
+                            styles.clientDirectoryCard,
+                            {
+                              backgroundColor: theme.colors.surface,
+                              borderColor: theme.colors.borderLight,
+                              shadowColor: theme.colors.shadowColor,
+                            },
+                          ]}
+                          onPress={() => setSelectedClient(c)}
+                          activeScale={0.98}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${c.name}, ${done} of ${total} videos completed`}
+                        >
+                          <View style={styles.clientCardHeader}>
+                            <View style={styles.clientAvatarPurple}>
+                              <Text style={styles.clientAvatarText}>
+                                {(c.name || 'C').charAt(0).toUpperCase()}
+                              </Text>
+                            </View>
+                            <View style={styles.clientCardInfo}>
+                              <Text style={[styles.clientCardName, { color: theme.colors.textPrimary }]}>{c.name}</Text>
+                              <Text style={[styles.clientCardSubtitle, { color: theme.colors.textMuted }]}>
+                                {formatCurrency(c.ratePerVideo)}/video &bull; {total} videos
+                              </Text>
+                            </View>
+                            <View style={styles.clientCardBadge}>
+                              <Text style={[styles.clientCardPercent, { color: theme.colors.textPrimary }]}>{percent}%</Text>
+                              <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
+                            </View>
+                          </View>
+
+                          {/* Mini Progress Track */}
+                          <View style={[styles.miniTrack, { backgroundColor: theme.colors.backgroundSubtle }]}>
+                            <View
+                              style={[
+                                styles.miniFill,
+                                { width: `${percent}%`, backgroundColor: theme.colors.mint },
+                              ]}
+                            />
+                          </View>
+
+                          <View style={styles.clientCardFooter}>
+                            <Text style={[styles.footerEarned, { color: theme.colors.mintDark }]}>
+                              {done}/{total} done ({formatCurrency(c.calculations.completedValue)})
+                            </Text>
+                            <Text style={[styles.footerUnused, { color: theme.colors.amber }]}>
+                              Unused: {formatCurrency(c.calculations.unusedBudget)}
+                            </Text>
+                          </View>
+                        </PressableScale>
+                      );
+                    })
+                  )}
+                </View>
+              )}
+
+              {activeTab === 'reports' && (
+                <View style={styles.reportsTabContainer}>
+                  <View style={styles.tabHeadingRow}>
+                    <Text style={[styles.tabTitle, { color: theme.colors.textPrimary }]}>Financial & Delivery Reports</Text>
+                    <Text style={[styles.tabSubtitle, { color: theme.colors.textMuted }]}>Export valid PDF & Excel reports</Text>
+                  </View>
+
+                  {clients.map((c) => (
+                    <View
+                      key={c.id}
+                      style={[
+                        styles.reportItemCard,
+                        {
+                          backgroundColor: theme.colors.surface,
+                          borderColor: theme.colors.borderLight,
+                          shadowColor: theme.colors.shadowColor,
+                        },
+                      ]}
+                    >
+                      <View style={styles.reportItemHeader}>
+                        <View>
+                          <Text style={[styles.reportClientName, { color: theme.colors.textPrimary }]}>{c.name}</Text>
+                          <Text style={[styles.reportClientMeta, { color: theme.colors.textMuted }]}>
+                            Budget: {formatCurrency(c.totalBudget)} &bull; {c.calculations.completedVideos}/{c.calculations.totalVideos} videos delivered
+                          </Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        style={[
+                          styles.reportExportBtn,
+                          {
+                            backgroundColor: theme.colors.purple,
+                            shadowColor: theme.colors.purple,
+                          },
+                        ]}
+                        onPress={() => {
+                          setClientForExport(c);
+                          setIsGlobalExportVisible(true);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="document-text-outline" size={16} color="#FFFFFF" />
+                        <Text style={styles.reportExportBtnText}>Generate Report (PDF / XLSX)</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {activeTab === 'more' && (
+                <View style={styles.moreTabContainer}>
+                  <View style={styles.tabHeadingRow}>
+                    <Text style={[styles.tabTitle, { color: theme.colors.textPrimary }]}>Settings & Diagnostics</Text>
+                    <Text style={[styles.tabSubtitle, { color: theme.colors.textMuted }]}>A Note v1.0.0 Claymorphism</Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.moreCard,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderColor: theme.colors.borderLight,
+                        shadowColor: theme.colors.shadowColor,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.moreCardTitle, { color: theme.colors.textPrimary }]}>App Capabilities</Text>
+                    <View style={styles.moreRow}>
+                      <Ionicons name="server-outline" size={18} color={theme.colors.mint} />
+                      <Text style={[styles.moreRowText, { color: theme.colors.textPrimary }]}>SQLite Offline Local Storage</Text>
+                      <Text
+                        style={[
+                          styles.moreBadge,
+                          {
+                            color: theme.colors.mintDark,
+                            backgroundColor: theme.colors.mintLight,
+                          },
+                        ]}
+                      >
+                        ACTIVE
+                      </Text>
+                    </View>
+                    <View style={styles.moreRow}>
+                      <Ionicons name="mic-outline" size={18} color={theme.colors.purple} />
+                      <Text style={[styles.moreRowText, { color: theme.colors.textPrimary }]}>Native Voice Recognition</Text>
+                      <Text
+                        style={[
+                          styles.moreBadge,
+                          {
+                            color: theme.colors.purpleDark,
+                            backgroundColor: theme.colors.purpleLight,
+                          },
+                        ]}
+                      >
+                        READY
+                      </Text>
+                    </View>
+                    <View style={styles.moreRow}>
+                      <Ionicons name="document-outline" size={18} color={theme.colors.mint} />
+                      <Text style={[styles.moreRowText, { color: theme.colors.textPrimary }]}>PDF & Excel (.xlsx) Engine</Text>
+                      <Text
+                        style={[
+                          styles.moreBadge,
+                          {
+                            color: theme.colors.mintDark,
+                            backgroundColor: theme.colors.mintLight,
+                          },
+                        ]}
+                      >
+                        GENUINE &amp; VERIFIED
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Data Management & Settings Entry */}
+                  <TouchableOpacity
+                    style={[
+                      styles.moreBackupBtn,
+                      {
+                        marginBottom: 10,
+                        backgroundColor: theme.colors.surface,
+                        borderColor: theme.colors.borderLight,
+                        shadowColor: theme.colors.shadowColor,
+                      },
+                    ]}
+                    onPress={() => setIsDataManagementVisible(true)}
+                    activeOpacity={0.8}
+                  >
+                    <View
+                      style={[
+                        styles.moreBackupIconBox,
+                        { backgroundColor: theme.colors.purpleLight },
+                      ]}
+                    >
+                      <Ionicons name="server" size={20} color={theme.colors.purple} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.moreBackupTitle, { color: theme.colors.textPrimary }]}>Data Management &amp; Settings</Text>
+                      <Text style={[styles.moreBackupDesc, { color: theme.colors.textMuted }]}>Backup &bull; Restore &bull; Delete All App Data</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+                  </TouchableOpacity>
+
+                  {/* Local Backup & Restore Entry */}
+                  <TouchableOpacity
+                    style={[
+                      styles.moreBackupBtn,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderColor: theme.colors.borderLight,
+                        shadowColor: theme.colors.shadowColor,
+                      },
+                    ]}
+                    onPress={() => setIsBackupRestoreVisible(true)}
+                    activeOpacity={0.8}
+                  >
+                    <View
+                      style={[
+                        styles.moreBackupIconBox,
+                        { backgroundColor: theme.colors.mintLight },
+                      ]}
+                    >
+                      <Ionicons name="save-outline" size={20} color={theme.colors.mint} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.moreBackupTitle, { color: theme.colors.textPrimary }]}>Local Backup &amp; Restore</Text>
+                      <Text style={[styles.moreBackupDesc, { color: theme.colors.textMuted }]}>Export or restore your offline database</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <View style={{ height: 120 }} />
               </ScrollView>
             )}
 
@@ -954,6 +1118,15 @@ export default function App() {
           <SplashAnimation onFinish={() => setShowSplash(false)} />
         )}
       </SafeAreaView>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

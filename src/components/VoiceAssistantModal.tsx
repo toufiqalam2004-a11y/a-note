@@ -447,7 +447,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                   ? isRunningInExpoGo()
                     ? 'Expo Go (Typed Mode)'
                     : capabilities?.available
-                    ? `Apple Speech (${capabilities?.currentLocale || 'en-IN'})${capabilities?.supportsOnDevice ? ' • On-Device' : ''}`
+                    ? `Apple Speech (${capabilities?.currentLocale || 'en-IN'})`
                     : 'Apple Speech (Unavailable)'
                   : capabilities?.isGoogleAvailable
                   ? 'Google Speech (en-IN)'
@@ -455,8 +455,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                   ? 'Android Recognizer (en-IN)'
                   : isRunningInExpoGo()
                   ? 'Expo Go (Typed Mode)'
-                  : 'Speech Ready'}
-                {Platform.OS !== 'ios' && capabilities?.supportsOnDevice ? ' • Offline' : ''}
+                  : 'Speech Unavailable'}
               </Text>
             </View>
           </View>

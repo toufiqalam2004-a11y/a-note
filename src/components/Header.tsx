@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { PressableScale } from './PressableScale';
 
 interface HeaderProps {
@@ -13,17 +14,26 @@ export const Header: React.FC<HeaderProps> = ({
   onMenuPress,
   onNotificationPress,
 }) => {
+  const { theme } = useTheme();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Left 3D Hamburger Menu Button with tactile spring */}
       <PressableScale
-        style={styles.iconButton}
+        style={[
+          styles.iconButton,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.borderLight,
+            shadowColor: theme.colors.shadowColor,
+          },
+        ]}
         onPress={onMenuPress}
         activeScale={0.90}
         accessibilityRole="button"
         accessibilityLabel="Open Navigation Menu"
       >
-        <Ionicons name="menu-outline" size={22} color={THEME.colors.textPrimary} />
+        <Ionicons name="menu-outline" size={22} color={theme.colors.textPrimary} />
       </PressableScale>
 
       {/* Center Brand / App Title */}
@@ -36,23 +46,30 @@ export const Header: React.FC<HeaderProps> = ({
           />
           <View>
             <View style={styles.titleRow}>
-              <Text style={styles.titleA}>A </Text>
-              <Text style={styles.titleNote}>Note</Text>
+              <Text style={[styles.titleA, { color: theme.colors.purple }]}>A </Text>
+              <Text style={[styles.titleNote, { color: theme.colors.textPrimary }]}>Note</Text>
             </View>
-            <Text style={styles.subtitle}>Client Video &amp; Delivery Tracker</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>Client Video &amp; Delivery Tracker</Text>
           </View>
         </View>
       </View>
 
       {/* Right 3D Notification Bell Button */}
       <PressableScale
-        style={styles.iconButton}
+        style={[
+          styles.iconButton,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.borderLight,
+            shadowColor: theme.colors.shadowColor,
+          },
+        ]}
         onPress={onNotificationPress}
         activeScale={0.90}
         accessibilityRole="button"
         accessibilityLabel="Notifications"
       >
-        <Ionicons name="notifications-outline" size={20} color={THEME.colors.textPrimary} />
+        <Ionicons name="notifications-outline" size={20} color={theme.colors.textPrimary} />
         {/* Soft pink notification dot */}
         <View style={styles.notificationDot} />
       </PressableScale>

@@ -25,7 +25,7 @@
     },
     "android": {
       "package": "com.editflow.app",
-      "versionCode": 2,
+      "versionCode": 5,
       "adaptiveIcon": {
         "backgroundColor": "#7654F5",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -34,8 +34,7 @@
       },
       "permissions": [
         "RECORD_AUDIO",
-        "INTERNET",
-        "android.permission.RECORD_AUDIO"
+        "INTERNET"
       ],
       "predictiveBackGestureEnabled": false
     },
@@ -52,8 +51,7 @@
         }
       ],
       "expo-font",
-      "expo-sharing",
-      "./plugins/withSherpaOnnxMaven.js"
+      "expo-sharing"
     ],
     "extra": {
       "eas": {

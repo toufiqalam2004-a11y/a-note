@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import {
   createAndExportBackup,
   validateBackupPayload,
@@ -34,6 +35,7 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
   onRestoreSuccess,
 }) => {
   const insets = useSafeAreaInsets();
+  const { theme, isDark } = useTheme();
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [pendingRestorePayload, setPendingRestorePayload] = useState<BackupPayload | null>(null);
@@ -152,26 +154,28 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
           style={[
             styles.container,
             {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.borderLight,
               paddingBottom: Math.max(insets.bottom, 16) + 12,
               paddingTop: insets.top > 0 ? insets.top : 16,
             },
           ]}
         >
           {/* Header */}
-          <View style={styles.header}>
+          <View style={[styles.header, { borderBottomColor: theme.colors.borderLight }]}>
             <View style={styles.headerTitleGroup}>
-              <Text style={styles.headerTitle}>Local Backup &amp; Restore</Text>
-              <Text style={styles.headerSubtitle}>100% Offline &bull; No Cloud Required</Text>
+              <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Local Backup &amp; Restore</Text>
+              <Text style={[styles.headerSubtitle, { color: theme.colors.textMuted }]}>100% Offline &bull; No Cloud Required</Text>
             </View>
             <PressableScale
               onPress={onClose}
-              style={styles.closeBtn}
+              style={[styles.closeBtn, { backgroundColor: theme.colors.backgroundSubtle }]}
               activeScale={0.88}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               accessibilityRole="button"
               accessibilityLabel="Close Backup and Restore Modal"
             >
-              <Ionicons name="close" size={22} color={THEME.colors.textMuted} />
+              <Ionicons name="close" size={22} color={theme.colors.textMuted} />
             </PressableScale>
           </View>
 

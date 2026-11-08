@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClientWithVideos, VideoItem } from '../types';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { formatCurrency, formatDate, formatTime } from '../utils/calculations';
 import { ClientHistoryExportModal } from './ClientHistoryExportModal';
 import { getDeterministicVideoType } from '../constants/videoTypes';
@@ -42,7 +43,8 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
   onUpdateVideoType,
 }) => {
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<'videos' | 'history' | 'reports'>('videos');
+  const { theme, isDark } = useTheme();
+  const [activeTab, setActiveTab] = useState<'videos' | 'reports'>('videos');
   const [isExportModalVisible, setIsExportModalVisible] = useState(false);
   const [selectedVideoForDetails, setSelectedVideoForDetails] = useState<VideoItem | null>(null);
   const { calculations, videos } = client;
@@ -145,17 +147,23 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Header Row matching Screen 2 in reference */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { backgroundColor: theme.colors.background }]}>
         <PressableScale
-          style={styles.iconButton}
+          style={[
+            styles.iconButton,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.borderLight,
+            },
+          ]}
           onPress={onBack}
           activeScale={0.92}
           accessibilityRole="button"
           accessibilityLabel="Back to previous screen"
         >
-          <Ionicons name="arrow-back" size={20} color={THEME.colors.textNavy} />
+          <Ionicons name="arrow-back" size={20} color={theme.colors.textPrimary} />
         </PressableScale>
 
         <View style={styles.clientProfileHeader}>
@@ -163,31 +171,45 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
             <Text style={styles.avatarText}>{initial}</Text>
           </View>
           <View style={styles.clientNameGroup}>
-            <Text style={styles.headerClientName}>{client.name}</Text>
-            <Text style={styles.headerSubtitle}>Client Details</Text>
+            <Text style={[styles.headerClientName, { color: theme.colors.textPrimary }]}>{client.name}</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.colors.textMuted }]}>Client Details</Text>
           </View>
         </View>
 
         <View style={styles.headerActions}>
           <PressableScale
-            style={styles.editPillBtn}
+            style={[
+              styles.editPillBtn,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.borderLight,
+                shadowColor: theme.colors.shadowColor,
+              },
+            ]}
             onPress={() => onEditClient ? onEditClient(client) : setIsExportModalVisible(true)}
             activeScale={0.94}
+            hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
             accessibilityRole="button"
             accessibilityLabel={`Edit ${client.name}`}
           >
-            <Ionicons name="pencil-outline" size={13} color={THEME.colors.textNavy} />
-            <Text style={styles.editBtnText}>Edit</Text>
+            <Ionicons name="pencil-outline" size={11} color={theme.colors.textPrimary} />
+            <Text style={[styles.editBtnText, { color: theme.colors.textPrimary }]}>Edit</Text>
           </PressableScale>
 
           <PressableScale
-            style={styles.iconButtonSmall}
+            style={[
+              styles.iconButtonSmall,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.borderLight,
+              },
+            ]}
             onPress={handleOptionsPress}
             activeScale={0.92}
             accessibilityRole="button"
             accessibilityLabel="More client options"
           >
-            <Ionicons name="ellipsis-vertical" size={18} color={THEME.colors.textNavy} />
+            <Ionicons name="ellipsis-vertical" size={18} color={theme.colors.textPrimary} />
           </PressableScale>
         </View>
       </View>
@@ -200,65 +222,107 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
         {/* 3 Summary Cards Row (Rate, Payment, Unused) */}
         <View style={styles.summaryRow}>
           {/* Card 1: Per Video Rate */}
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryIconCircleAmber}>
-              <Ionicons name="cash-outline" size={16} color={THEME.colors.amber} />
+          <View
+            style={[
+              styles.summaryCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.borderLight,
+                shadowColor: theme.colors.shadowColor,
+              },
+            ]}
+          >
+            <View style={[styles.summaryIconCircleAmber, { backgroundColor: theme.colors.amberLight }]}>
+              <Ionicons name="cash-outline" size={16} color={theme.colors.amber} />
             </View>
-            <Text style={styles.summaryValue}>{formatCurrency(client.ratePerVideo)}</Text>
-            <Text style={styles.summaryLabel}>Per Video Rate</Text>
+            <Text style={[styles.summaryValue, { color: theme.colors.textPrimary }]}>{formatCurrency(client.ratePerVideo)}</Text>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textMuted }]}>Per Video Rate</Text>
           </View>
 
           {/* Card 2: Payment Received */}
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryIconCirclePurple}>
-              <Ionicons name="wallet-outline" size={16} color={THEME.colors.purple} />
+          <View
+            style={[
+              styles.summaryCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.borderLight,
+                shadowColor: theme.colors.shadowColor,
+              },
+            ]}
+          >
+            <View style={[styles.summaryIconCirclePurple, { backgroundColor: theme.colors.purpleLight }]}>
+              <Ionicons name="wallet-outline" size={16} color={theme.colors.purple} />
             </View>
-            <Text style={styles.summaryValue}>{formatCurrency(client.totalBudget)}</Text>
-            <Text style={styles.summaryLabel}>Payment Received</Text>
+            <Text style={[styles.summaryValue, { color: theme.colors.textPrimary }]}>{formatCurrency(client.totalBudget)}</Text>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textMuted }]}>Payment Received</Text>
           </View>
 
           {/* Card 3: Unused Balance */}
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryIconCirclePurple}>
-              <Ionicons name="pie-chart-outline" size={16} color={THEME.colors.purple} />
+          <View
+            style={[
+              styles.summaryCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.borderLight,
+                shadowColor: theme.colors.shadowColor,
+              },
+            ]}
+          >
+            <View style={[styles.summaryIconCirclePurple, { backgroundColor: theme.colors.purpleLight }]}>
+              <Ionicons name="pie-chart-outline" size={16} color={theme.colors.purple} />
             </View>
-            <Text style={styles.summaryValue}>{formatCurrency(calculations.unusedBudget)}</Text>
-            <Text style={styles.summaryLabel}>Unused Balance</Text>
+            <Text style={[styles.summaryValue, { color: theme.colors.textPrimary }]}>{formatCurrency(calculations.unusedBudget)}</Text>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textMuted }]}>Unused Balance</Text>
           </View>
         </View>
 
         {/* Video Progress Card */}
-        <View style={styles.progressCard}>
+        <View
+          style={[
+            styles.progressCard,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.borderLight,
+              shadowColor: theme.colors.shadowColor,
+            },
+          ]}
+        >
           <View style={styles.progressCardHeader}>
-            <Text style={styles.progressCardTitle}>Video Progress</Text>
+            <Text style={[styles.progressCardTitle, { color: theme.colors.textPrimary }]}>Video Progress</Text>
             <View style={styles.progressRightGroup}>
-              <Text style={styles.progressCount}>
+              <Text style={[styles.progressCount, { color: theme.colors.textMuted }]}>
                 {calculations.completedVideos} / {calculations.totalVideos}
               </Text>
-              <Text style={styles.progressPercent}>{progressPercent}%</Text>
+              <Text style={[styles.progressPercent, { color: theme.colors.textPrimary }]}>{progressPercent}%</Text>
             </View>
           </View>
 
           {/* Mint Progress Track */}
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+          <View style={[styles.progressTrack, { backgroundColor: theme.colors.backgroundSubtle }]}>
+            <View style={[styles.progressFill, { width: `${progressPercent}%`, backgroundColor: theme.colors.mint }]} />
           </View>
 
           {/* Bottom Financial Reconciliation */}
           <View style={styles.progressFooterRow}>
-            <Text style={styles.earnedText}>
+            <Text style={[styles.earnedText, { color: theme.colors.mintDark }]}>
               {formatCurrency(calculations.completedValue)} earned
             </Text>
-            <Text style={styles.pendingText}>
+            <Text style={[styles.pendingText, { color: theme.colors.textMuted }]}>
               {formatCurrency(calculations.remainingValue)} pending
             </Text>
           </View>
         </View>
 
-        {/* Navigation Tabs (Videos, History, Reports) */}
-        <View style={styles.tabBar}>
+        {/* Navigation Tabs (Videos, Reports) */}
+        <View style={[styles.tabBar, { backgroundColor: theme.colors.backgroundSubtle }]}>
           <PressableScale
-            style={[styles.tabPill, activeTab === 'videos' && styles.tabPillActiveMint]}
+            style={[
+              styles.tabPill,
+              activeTab === 'videos' && [
+                styles.tabPillActiveMint,
+                { backgroundColor: theme.colors.mintLight, borderColor: theme.colors.mintBorder },
+              ],
+            ]}
             onPress={() => setActiveTab('videos')}
             activeScale={0.94}
             accessibilityRole="button"
@@ -268,12 +332,14 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
             <Ionicons
               name="videocam-outline"
               size={15}
-              color={activeTab === 'videos' ? THEME.colors.mint : THEME.colors.textMuted}
+              color={activeTab === 'videos' ? theme.colors.mintDark : theme.colors.textMuted}
             />
             <Text
               style={[
                 styles.tabPillText,
-                activeTab === 'videos' && styles.tabPillTextActiveMint,
+                activeTab === 'videos'
+                  ? [styles.tabPillTextActiveMint, { color: theme.colors.mintDark }]
+                  : { color: theme.colors.textMuted },
               ]}
             >
               Videos
@@ -281,33 +347,13 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
           </PressableScale>
 
           <PressableScale
-            style={[styles.tabPill, activeTab === 'history' && styles.tabPillActivePurple]}
-            onPress={() => {
-              setActiveTab('history');
-              setIsExportModalVisible(true);
-            }}
-            activeScale={0.94}
-            accessibilityRole="button"
-            accessibilityLabel="History Tab"
-            accessibilityState={{ selected: activeTab === 'history' }}
-          >
-            <Ionicons
-              name="time-outline"
-              size={15}
-              color={activeTab === 'history' ? THEME.colors.purple : THEME.colors.textMuted}
-            />
-            <Text
-              style={[
-                styles.tabPillText,
-                activeTab === 'history' && styles.tabPillTextActivePurple,
-              ]}
-            >
-              History
-            </Text>
-          </PressableScale>
-
-          <PressableScale
-            style={[styles.tabPill, activeTab === 'reports' && styles.tabPillActivePurple]}
+            style={[
+              styles.tabPill,
+              activeTab === 'reports' && [
+                styles.tabPillActivePurple,
+                { backgroundColor: theme.colors.purpleLight, borderColor: theme.colors.purpleBorder },
+              ],
+            ]}
             onPress={() => {
               setActiveTab('reports');
               setIsExportModalVisible(true);
@@ -320,12 +366,14 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
             <Ionicons
               name="document-text-outline"
               size={15}
-              color={activeTab === 'reports' ? THEME.colors.purple : THEME.colors.textMuted}
+              color={activeTab === 'reports' ? theme.colors.purpleDark : theme.colors.textMuted}
             />
             <Text
               style={[
                 styles.tabPillText,
-                activeTab === 'reports' && styles.tabPillTextActivePurple,
+                activeTab === 'reports'
+                  ? [styles.tabPillTextActivePurple, { color: theme.colors.purpleDark }]
+                  : { color: theme.colors.textMuted },
               ]}
             >
               Reports
@@ -336,9 +384,17 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
         {/* Video Checklist Items (Matching Screen 2) */}
         <View style={styles.videoListContainer}>
           {videos.length === 0 ? (
-            <View style={styles.emptyVideosCard}>
-              <Text style={styles.emptyTitle}>No Videos Generated</Text>
-              <Text style={styles.emptySubtitle}>
+            <View
+              style={[
+                styles.emptyVideosCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.borderLight,
+                },
+              ]}
+            >
+              <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>No Videos Generated</Text>
+              <Text style={[styles.emptySubtitle, { color: theme.colors.textMuted }]}>
                 Total budget is less than the per-video rate.
               </Text>
             </View>
@@ -358,14 +414,23 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
               return (
                 <View
                   key={vid.id}
-                  style={[styles.videoCard, isCompleted && styles.videoCardCompleted]}
+                  style={[
+                    styles.videoCard,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: isCompleted ? theme.colors.borderLight : theme.colors.borderLight,
+                      shadowColor: theme.colors.shadowColor,
+                    },
+                    isCompleted && styles.videoCardCompleted,
+                  ]}
                 >
                   {/* Left: Number circle (Green check for completed, Purple for pending) */}
-                  {/* Left: Number circle - opens details, NEVER toggles completion */}
                   <TouchableOpacity
                     style={[
                       styles.numberCircle,
-                      isCompleted ? styles.numberCircleDone : styles.numberCirclePending,
+                      isCompleted
+                        ? [styles.numberCircleDone, { backgroundColor: theme.colors.mint }]
+                        : [styles.numberCirclePending, { backgroundColor: theme.colors.backgroundSubtle }],
                     ]}
                     onPress={() => handleVideoOptions(vid)}
                     activeOpacity={0.8}
@@ -377,7 +442,7 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
                     {isCompleted ? (
                       <Ionicons name="checkmark" size={17} color="#FFFFFF" />
                     ) : (
-                      <Text style={styles.numberTextPending}>{vid.videoNumber}</Text>
+                      <Text style={[styles.numberTextPending, { color: theme.colors.purple }]}>{vid.videoNumber}</Text>
                     )}
                   </TouchableOpacity>
 
@@ -390,12 +455,13 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
                     <Text
                       style={[
                         styles.videoTitle,
+                        { color: theme.colors.textPrimary },
                         isCompleted && styles.videoTitleCompleted,
                       ]}
                     >
                       Video {vid.videoNumber}
                     </Text>
-                    <Text style={styles.videoSubtitle}>{videoSubtitle}</Text>
+                    <Text style={[styles.videoSubtitle, { color: theme.colors.textMuted }]}>{videoSubtitle}</Text>
                   </TouchableOpacity>
 
                   {/* Right: Dedicated status button and isolated dots */}
@@ -405,20 +471,26 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
                         <Ionicons
                           name="checkmark-circle"
                           size={18}
-                          color={THEME.colors.mint}
+                          color={theme.colors.mint}
                         />
-                        <Text style={styles.videoDateText}>{dateDisplay}</Text>
+                        <Text style={[styles.videoDateText, { color: theme.colors.textMuted }]}>{dateDisplay}</Text>
                       </View>
                     ) : (
                       <TouchableOpacity
-                        style={styles.pendingCheckButton}
+                        style={[
+                          styles.pendingCheckButton,
+                          {
+                            backgroundColor: theme.colors.purpleLight,
+                            borderColor: theme.colors.purpleBorder,
+                          },
+                        ]}
                         onPress={() => handleManualComplete(vid)}
                         activeOpacity={0.7}
                         accessibilityRole="button"
                         accessibilityLabel={`Mark Video ${vid.videoNumber} as completed`}
                       >
-                        <View style={styles.pendingCheckboxRing} />
-                        <Text style={styles.pendingPillText}>Pending</Text>
+                        <View style={[styles.pendingCheckboxRing, { borderColor: theme.colors.purple }]} />
+                        <Text style={[styles.pendingPillText, { color: theme.colors.purpleDark }]}>Pending</Text>
                       </TouchableOpacity>
                     )}
 
@@ -433,7 +505,7 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
                       <Ionicons
                         name="ellipsis-horizontal"
                         size={16}
-                        color={THEME.colors.textMuted}
+                        color={theme.colors.textMuted}
                       />
                     </TouchableOpacity>
                   </View>
@@ -449,20 +521,26 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
       {/* Floating Bottom Button: "Mark Video with Voice" */}
       <View style={[styles.bottomBarContainer, { bottom: Math.max(insets.bottom, 16) + 8 }]}>
         <PressableScale
-          style={styles.voiceFloatingBtn}
+          style={[
+            styles.voiceFloatingBtn,
+            {
+              backgroundColor: theme.colors.purple,
+              shadowColor: theme.colors.purple,
+            },
+          ]}
           onPress={onOpenVoice}
           activeScale={0.96}
           accessibilityRole="button"
           accessibilityLabel="Mark Video with Voice Assistant"
         >
           <View style={styles.voiceBtnCircleIcon}>
-            <Ionicons name="mic" size={18} color={THEME.colors.purple} />
+            <Ionicons name="mic" size={18} color={theme.colors.purple} />
           </View>
 
           <Text style={styles.voiceBtnText}>Mark Video with Voice</Text>
 
           <View style={styles.voiceBtnCircleIcon}>
-            <Ionicons name="arrow-forward" size={16} color={THEME.colors.purple} />
+            <Ionicons name="arrow-forward" size={16} color={theme.colors.purple} />
           </View>
         </PressableScale>
       </View>
@@ -471,7 +549,10 @@ export const ClientDetailsScreen: React.FC<ClientDetailsScreenProps> = ({
       <ClientHistoryExportModal
         visible={isExportModalVisible}
         client={client}
-        onClose={() => setIsExportModalVisible(false)}
+        onClose={() => {
+          setIsExportModalVisible(false);
+          setActiveTab('videos');
+        }}
         onToggleVideo={onToggleVideo}
       />
 
@@ -721,23 +802,24 @@ const styles = StyleSheet.create({
   editPillBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3.5,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 9999,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.9)',
     shadowColor: THEME.colors.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 6,
+    shadowRadius: 4,
     elevation: 2,
   },
   editBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: THEME.colors.textNavy,
+    includeFontPadding: false,
   },
   iconButtonSmall: {
     width: 36,

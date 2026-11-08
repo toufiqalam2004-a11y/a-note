@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { deleteAllAppData } from '../services/db';
 import { PressableScale } from './PressableScale';
 import { UserProfile } from '../services/userProfileService';
@@ -40,6 +41,7 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
   onNotify,
 }) => {
   const insets = useSafeAreaInsets();
+  const { theme, isDark } = useTheme();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [typedPhrase, setTypedPhrase] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
@@ -106,22 +108,31 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
           onPress={handleSafeBack}
         />
 
-        <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
+        <View
+          style={[
+            styles.container,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.borderLight,
+              paddingBottom: Math.max(insets.bottom, 16) + 12,
+            },
+          ]}
+        >
           {/* Header */}
-          <View style={styles.header}>
+          <View style={[styles.header, { borderBottomColor: theme.colors.borderLight }]}>
             <View>
-              <Text style={styles.title}>Data Management</Text>
-              <Text style={styles.subtitle}>Settings &bull; Backup &bull; Clean Slate</Text>
+              <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Data Management</Text>
+              <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>Settings &bull; Backup &bull; Clean Slate</Text>
             </View>
             <PressableScale
-              style={styles.closeBtn}
+              style={[styles.closeBtn, { backgroundColor: theme.colors.backgroundSubtle }]}
               onPress={handleSafeBack}
               activeScale={0.88}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               accessibilityRole="button"
               accessibilityLabel="Close Data Management"
             >
-              <Ionicons name="close" size={22} color={THEME.colors.textMuted} />
+              <Ionicons name="close" size={22} color={theme.colors.textMuted} />
             </PressableScale>
           </View>
 
@@ -130,25 +141,25 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
             showsVerticalScrollIndicator={false}
           >
             {/* 1. Workspace Profile Section */}
-            <View style={styles.sectionCard}>
+            <View style={[styles.sectionCard, { backgroundColor: theme.colors.backgroundSubtle, borderColor: theme.colors.borderLight }]}>
               <View style={styles.sectionHeader}>
-                <View style={[styles.iconBox, { backgroundColor: '#EDE8FD' }]}>
-                  <Ionicons name="person-circle-outline" size={22} color={THEME.colors.purple} />
+                <View style={[styles.iconBox, { backgroundColor: theme.colors.purpleLight }]}>
+                  <Ionicons name="person-circle-outline" size={22} color={theme.colors.purple} />
                 </View>
                 <View style={styles.sectionTitleGroup}>
-                  <Text style={styles.sectionTitle}>My Profile &amp; Workspace</Text>
-                  <Text style={styles.sectionDesc}>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>My Profile &amp; Workspace</Text>
+                  <Text style={[styles.sectionDesc, { color: theme.colors.textMuted }]}>
                     {userProfile?.displayName
                       ? `${userProfile.displayName} • ${userProfile.profession || 'Creative'}${
                           userProfile.studioName ? ` (${userProfile.studioName})` : ''
                         }`
-                      : 'Personalize your creator name, profession & studio.'}
+                      : 'Personalize your creator name, profession, studio & theme.'}
                   </Text>
                 </View>
               </View>
 
               <PressableScale
-                style={styles.actionRow}
+                style={[styles.actionRow, { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderLight }]}
                 onPress={() => {
                   onClose();
                   if (onOpenProfile) onOpenProfile();
@@ -158,29 +169,29 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
                 accessibilityLabel="Edit Profile and Workspace"
               >
                 <View style={styles.actionRowLeft}>
-                  <Ionicons name="pencil-outline" size={18} color={THEME.colors.purple} />
-                  <Text style={styles.actionRowText}>Edit Workspace Profile</Text>
+                  <Ionicons name="pencil-outline" size={18} color={theme.colors.purple} />
+                  <Text style={[styles.actionRowText, { color: theme.colors.textPrimary }]}>Edit Workspace Profile</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
+                <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
               </PressableScale>
             </View>
 
             {/* 2. Backup & Restore Section */}
-            <View style={styles.sectionCard}>
+            <View style={[styles.sectionCard, { backgroundColor: theme.colors.backgroundSubtle, borderColor: theme.colors.borderLight }]}>
               <View style={styles.sectionHeader}>
-                <View style={[styles.iconBox, { backgroundColor: '#EDE8FD' }]}>
-                  <Ionicons name="cloud-upload-outline" size={20} color={THEME.colors.purple} />
+                <View style={[styles.iconBox, { backgroundColor: theme.colors.purpleLight }]}>
+                  <Ionicons name="cloud-upload-outline" size={20} color={theme.colors.purple} />
                 </View>
                 <View style={styles.sectionTitleGroup}>
-                  <Text style={styles.sectionTitle}>Backup &amp; Restore</Text>
-                  <Text style={styles.sectionDesc}>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Backup &amp; Restore</Text>
+                  <Text style={[styles.sectionDesc, { color: theme.colors.textMuted }]}>
                     Save your clients, video progress, and financials to a JSON file or restore from a previous backup.
                   </Text>
                 </View>
               </View>
 
               <PressableScale
-                style={styles.actionRow}
+                style={[styles.actionRow, { backgroundColor: theme.colors.surface, borderColor: theme.colors.borderLight }]}
                 onPress={() => {
                   onClose();
                   onOpenBackupRestore();
@@ -190,10 +201,10 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
                 accessibilityLabel="Open Backup and Restore Center"
               >
                 <View style={styles.actionRowLeft}>
-                  <Ionicons name="save-outline" size={18} color={THEME.colors.purple} />
-                  <Text style={styles.actionRowText}>Open Backup &amp; Restore Center</Text>
+                  <Ionicons name="save-outline" size={18} color={theme.colors.purple} />
+                  <Text style={[styles.actionRowText, { color: theme.colors.textPrimary }]}>Open Backup &amp; Restore Center</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={THEME.colors.textMuted} />
+                <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
               </PressableScale>
             </View>
 

@@ -15,7 +15,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { THEME } from '../constants/theme';
+import { THEME, ThemeId } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { PressableScale } from './PressableScale';
 import {
   PROFESSIONS,
@@ -51,9 +52,12 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   const insets = useSafeAreaInsets();
   const screenHeight = Dimensions.get('window').height;
 
+  const { theme, themeId, setThemeId, themes } = useTheme();
   const [displayName, setDisplayName] = useState('');
   const [selectedProfession, setSelectedProfession] = useState<ProfessionType>('Video Editor');
   const [studioName, setStudioName] = useState('');
+  const [selectedThemeId, setSelectedThemeId] = useState<ThemeId>(themeId);
+  const initialThemeIdRef = useRef<ThemeId>(themeId);
   const [nameError, setNameError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -67,14 +71,20 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         (currentProfile?.profession as ProfessionType) || 'Video Editor'
       );
       setStudioName(currentProfile?.studioName || '');
+      setSelectedThemeId(themeId);
+      initialThemeIdRef.current = themeId;
       setNameError(null);
     }
-  }, [visible, currentProfile]);
+  }, [visible, currentProfile, themeId]);
 
   const handleSafeBack = useCallback(() => {
+    // If cancelled, restore initial theme
+    if (selectedThemeId !== initialThemeIdRef.current) {
+      setThemeId(initialThemeIdRef.current);
+    }
     onClose();
     return true;
-  }, [onClose]);
+  }, [onClose, selectedThemeId, setThemeId]);
 
   useEffect(() => {
     if (!visible) return;
@@ -98,9 +108,11 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
         profession: selectedProfession,
         studioName: studioName.trim(),
       });
+      await setThemeId(selectedThemeId);
+      initialThemeIdRef.current = selectedThemeId;
       setIsSaving(false);
       onProfileUpdated(updated);
-      onNotify('Profile updated successfully!');
+      onNotify('Profile and theme updated successfully!');
       onClose();
     } catch (e: any) {
       setIsSaving(false);
@@ -131,30 +143,34 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
           <View
             style={[
               styles.container,
-              { paddingBottom: Math.max(insets.bottom, 16) + 12 },
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.borderLight,
+                paddingBottom: Math.max(insets.bottom, 16) + 12,
+              },
             ]}
           >
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
               <View style={styles.headerTitleGroup}>
-                <View style={styles.headerIconCircle}>
-                  <Ionicons name="person-circle" size={24} color={THEME.colors.purple} />
+                <View style={[styles.headerIconCircle, { backgroundColor: theme.colors.purpleLight }]}>
+                  <Ionicons name="person-circle" size={24} color={theme.colors.purple} />
                 </View>
                 <View>
-                  <Text style={styles.title}>Personalize Workspace</Text>
-                  <Text style={styles.subtitle}>My Profile &bull; Local &bull; Private</Text>
+                  <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Personalize Workspace</Text>
+                  <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>My Profile &bull; Local &bull; Private</Text>
                 </View>
               </View>
 
               <PressableScale
-                style={styles.closeBtn}
+                style={[styles.closeBtn, { backgroundColor: theme.colors.backgroundSubtle }]}
                 onPress={handleSafeBack}
                 activeScale={0.88}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 accessibilityRole="button"
                 accessibilityLabel="Close"
               >
-                <Ionicons name="close" size={22} color={THEME.colors.textMuted} />
+                <Ionicons name="close" size={22} color={theme.colors.textMuted} />
               </PressableScale>
             </View>
 
@@ -167,32 +183,36 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
               {/* 1. Display Name */}
               <View style={styles.inputGroup}>
                 <View style={styles.labelRow}>
-                  <Text style={styles.fieldLabel}>Display Name</Text>
+                  <Text style={[styles.fieldLabel, { color: theme.colors.textPrimary }]}>Display Name</Text>
                   <Text style={styles.requiredStar}>*</Text>
                 </View>
 
                 <View
                   style={[
                     styles.inputWrapper,
+                    {
+                      backgroundColor: theme.colors.backgroundSubtle,
+                      borderColor: nameError ? theme.colors.danger : theme.colors.border,
+                    },
                     nameError ? styles.inputWrapperError : null,
                   ]}
                 >
                   <Ionicons
                     name="person-outline"
                     size={18}
-                    color={nameError ? THEME.colors.danger : THEME.colors.textMuted}
+                    color={nameError ? theme.colors.danger : theme.colors.textMuted}
                     style={styles.inputIcon}
                   />
                   <TextInput
                     ref={nameInputRef}
-                    style={styles.textInput}
+                    style={[styles.textInput, { color: theme.colors.textPrimary }]}
                     value={displayName}
                     onChangeText={(val) => {
                       setDisplayName(val);
                       if (nameError) setNameError(null);
                     }}
                     placeholder="What should we call you?"
-                    placeholderTextColor="#A09CB8"
+                    placeholderTextColor={theme.colors.textMuted}
                     autoCapitalize="words"
                     autoCorrect={false}
                     accessibilityLabel="Display Name"
@@ -200,7 +220,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
                 </View>
                 {nameError ? (
                   <View style={styles.errorRow}>
-                    <Ionicons name="alert-circle" size={13} color={THEME.colors.danger} />
+                    <Ionicons name="alert-circle" size={13} color={theme.colors.danger} />
                     <Text style={styles.errorText}>{nameError}</Text>
                   </View>
                 ) : null}
@@ -208,8 +228,8 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
 
               {/* 2. Profession */}
               <View style={styles.inputGroup}>
-                <Text style={styles.fieldLabel}>Profession</Text>
-                <Text style={styles.helperText}>Select your creative discipline:</Text>
+                <Text style={[styles.fieldLabel, { color: theme.colors.textPrimary }]}>Profession</Text>
+                <Text style={[styles.helperText, { color: theme.colors.textMuted }]}>Select your creative discipline:</Text>
 
                 <View style={styles.professionGrid}>
                   {PROFESSIONS.map((profession) => {
@@ -221,6 +241,10 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
                         key={profession}
                         style={[
                           styles.professionCard,
+                          {
+                            backgroundColor: isSelected ? theme.colors.mintLight : theme.colors.backgroundSubtle,
+                            borderColor: isSelected ? theme.colors.mint : theme.colors.border,
+                          },
                           isSelected && styles.professionCardSelected,
                         ]}
                         containerStyle={styles.professionCardContainer}
@@ -233,18 +257,23 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
                         <View
                           style={[
                             styles.professionIconBox,
+                            {
+                              backgroundColor: theme.colors.surface,
+                              borderColor: isSelected ? theme.colors.mint : theme.colors.border,
+                            },
                             isSelected && styles.professionIconBoxSelected,
                           ]}
                         >
                           <Ionicons
                             name={iconName}
                             size={18}
-                            color={isSelected ? THEME.colors.mintDark : THEME.colors.textSecondary}
+                            color={isSelected ? theme.colors.mintDark : theme.colors.textSecondary}
                           />
                         </View>
                         <Text
                           style={[
                             styles.professionTitle,
+                            { color: isSelected ? theme.colors.mintDark : theme.colors.textSecondary },
                             isSelected && styles.professionTitleSelected,
                           ]}
                           numberOfLines={1}
@@ -252,7 +281,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
                           {profession}
                         </Text>
                         {isSelected && (
-                          <View style={styles.checkBadge}>
+                          <View style={[styles.checkBadge, { backgroundColor: theme.colors.mint }]}>
                             <Ionicons name="checkmark-sharp" size={12} color="#FFFFFF" />
                           </View>
                         )}
@@ -265,45 +294,178 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
               {/* 3. Studio / Business Name */}
               <View style={styles.inputGroup}>
                 <View style={styles.labelRow}>
-                  <Text style={styles.fieldLabel}>Studio / Business Name</Text>
-                  <Text style={styles.optionalBadge}>Optional</Text>
+                  <Text style={[styles.fieldLabel, { color: theme.colors.textPrimary }]}>Studio / Business Name</Text>
+                  <Text style={[styles.optionalBadge, { backgroundColor: theme.colors.backgroundSubtle, color: theme.colors.textMuted }]}>Optional</Text>
                 </View>
 
-                <View style={styles.inputWrapper}>
+                <View style={[styles.inputWrapper, { backgroundColor: theme.colors.backgroundSubtle, borderColor: theme.colors.border }]}>
                   <Ionicons
                     name="business-outline"
                     size={18}
-                    color={THEME.colors.textMuted}
+                    color={theme.colors.textMuted}
                     style={styles.inputIcon}
                   />
                   <TextInput
-                    style={styles.textInput}
+                    style={[styles.textInput, { color: theme.colors.textPrimary }]}
                     value={studioName}
                     onChangeText={setStudioName}
                     placeholder="Your studio or business name"
-                    placeholderTextColor="#A09CB8"
+                    placeholderTextColor={theme.colors.textMuted}
                     autoCapitalize="words"
                     autoCorrect={false}
                     accessibilityLabel="Studio or Business Name"
                   />
                 </View>
-                <Text style={styles.subHelperText}>
+                <Text style={[styles.subHelperText, { color: theme.colors.textMuted }]}>
                   Shown on your dashboard header below your greeting.
                 </Text>
+              </View>
+
+              {/* 4. Themes & Visual Style */}
+              <View style={styles.inputGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={[styles.fieldLabel, { color: theme.colors.textPrimary }]}>
+                    App Theme
+                  </Text>
+                  <Text
+                    style={[
+                      styles.optionalBadge,
+                      {
+                        backgroundColor: theme.colors.purpleLight,
+                        color: theme.colors.purple,
+                        fontWeight: '800',
+                      },
+                    ]}
+                  >
+                    {theme.name}
+                  </Text>
+                </View>
+                <Text style={[styles.helperText, { color: theme.colors.textMuted }]}>
+                  Choose your preferred color palette & appearance:
+                </Text>
+
+                <View style={styles.themeGrid}>
+                  {themes.map((preset) => {
+                    const isSelected = selectedThemeId === preset.id;
+                    return (
+                      <PressableScale
+                        key={preset.id}
+                        style={[
+                          styles.themeCard,
+                          {
+                            backgroundColor: preset.preview.surface,
+                            borderColor: isSelected
+                              ? preset.preview.primary
+                              : preset.colors.border,
+                          },
+                          isSelected && styles.themeCardSelected,
+                        ]}
+                        containerStyle={styles.themeCardContainer}
+                        onPress={() => {
+                          setSelectedThemeId(preset.id);
+                          setThemeId(preset.id);
+                        }}
+                        activeScale={0.96}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: isSelected }}
+                        accessibilityLabel={`${preset.name} Theme`}
+                      >
+                        <View style={styles.themeCardHeader}>
+                          <View style={styles.themeNameGroup}>
+                            <Text
+                              style={[
+                                styles.themeNameText,
+                                { color: preset.isDark ? '#F8F9FA' : '#1E1B38' },
+                                isSelected && { fontWeight: '800' },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {preset.name}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.themeTaglineText,
+                                { color: preset.isDark ? '#8A91A8' : '#7D7895' },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {preset.isDark ? 'Dark Mode' : 'Light Mode'}
+                            </Text>
+                          </View>
+                          {isSelected ? (
+                            <View
+                              style={[
+                                styles.themeCheckBadge,
+                                { backgroundColor: preset.preview.primary },
+                              ]}
+                            >
+                              <Ionicons name="checkmark-sharp" size={11} color="#FFFFFF" />
+                            </View>
+                          ) : (
+                            <View
+                              style={[
+                                styles.themeRadioUnselected,
+                                { borderColor: preset.colors.border },
+                              ]}
+                            />
+                          )}
+                        </View>
+
+                        {/* Visual Palette Swatches */}
+                        <View style={styles.swatchRow}>
+                          <View
+                            style={[
+                              styles.swatchCircle,
+                              {
+                                backgroundColor: preset.preview.bg,
+                                borderColor: preset.isDark
+                                  ? 'rgba(255,255,255,0.15)'
+                                  : 'rgba(0,0,0,0.1)',
+                              },
+                            ]}
+                          />
+                          <View
+                            style={[
+                              styles.swatchCircle,
+                              {
+                                backgroundColor: preset.preview.surface,
+                                borderColor: preset.isDark
+                                  ? 'rgba(255,255,255,0.2)'
+                                  : 'rgba(0,0,0,0.12)',
+                              },
+                            ]}
+                          />
+                          <View
+                            style={[
+                              styles.swatchCircle,
+                              { backgroundColor: preset.preview.primary },
+                            ]}
+                          />
+                          <View
+                            style={[
+                              styles.swatchCircle,
+                              { backgroundColor: preset.preview.accent },
+                            ]}
+                          />
+                        </View>
+                      </PressableScale>
+                    );
+                  })}
+                </View>
               </View>
 
               {/* Action Buttons */}
               <View style={styles.buttonRow}>
                 <TouchableOpacity
-                  style={styles.cancelBtn}
+                  style={[styles.cancelBtn, { backgroundColor: theme.colors.backgroundSubtle }]}
                   onPress={handleSafeBack}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                  <Text style={[styles.cancelBtnText, { color: theme.colors.textPrimary }]}>Cancel</Text>
                 </TouchableOpacity>
 
                 <PressableScale
-                  style={styles.saveBtn}
+                  style={[styles.saveBtn, { backgroundColor: theme.colors.purple, shadowColor: theme.colors.purple }]}
                   containerStyle={styles.saveBtnContainer}
                   onPress={handleSave}
                   activeScale={0.96}
@@ -574,5 +736,70 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  themeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  themeCardContainer: {
+    width: '48.5%',
+  },
+  themeCard: {
+    width: '100%',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    gap: 8,
+  },
+  themeCardSelected: {
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  themeCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  themeNameGroup: {
+    flex: 1,
+    marginRight: 4,
+  },
+  themeNameText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  themeTaglineText: {
+    fontSize: 9.5,
+    marginTop: 1,
+    fontWeight: '500',
+  },
+  themeCheckBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeRadioUnselected: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+  },
+  swatchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  swatchCircle: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1,
   },
 });

@@ -18,6 +18,7 @@ import {
   VideoItem,
 } from '../types';
 import { THEME } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 import { formatCurrency, formatDate, formatTime } from '../utils/calculations';
 import { exportClientPDF, exportClientExcel } from '../services/exportService';
 import { PressableScale } from './PressableScale';
@@ -36,6 +37,7 @@ export const ClientHistoryExportModal: React.FC<ClientHistoryExportModalProps> =
   onToggleVideo,
 }) => {
   const insets = useSafeAreaInsets();
+  const { theme, isDark } = useTheme();
   const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('all');
   const [statusFilter, setStatusFilter] = useState<HistoryStatusFilter>('all');
   const [isExporting, setIsExporting] = useState(false);
@@ -123,26 +125,28 @@ export const ClientHistoryExportModal: React.FC<ClientHistoryExportModalProps> =
           style={[
             styles.container,
             {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.borderLight,
               paddingBottom: Math.max(insets.bottom, 16) + 10,
               paddingTop: insets.top > 0 ? insets.top : 16,
             },
           ]}
         >
           {/* Header */}
-          <View style={styles.header}>
+          <View style={[styles.header, { borderBottomColor: theme.colors.borderLight }]}>
             <View style={styles.headerTitleGroup}>
-              <Text style={styles.headerTitle}>{client.name}</Text>
-              <Text style={styles.headerSubtitle}>Delivery History & Export Reports</Text>
+              <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>{client.name}</Text>
+              <Text style={[styles.headerSubtitle, { color: theme.colors.textMuted }]}>Delivery History & Export Reports</Text>
             </View>
             <PressableScale
               onPress={onClose}
-              style={styles.closeBtn}
+              style={[styles.closeBtn, { backgroundColor: theme.colors.backgroundSubtle }]}
               activeScale={0.88}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               accessibilityRole="button"
               accessibilityLabel="Close History and Export Modal"
             >
-              <Ionicons name="close" size={22} color={THEME.colors.textMuted} />
+              <Ionicons name="close" size={22} color={theme.colors.textMuted} />
             </PressableScale>
           </View>
 
