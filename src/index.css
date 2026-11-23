@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    color: #1E1B38;
+  }
+  
+  body {
+    background-color: #FAFAFD;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom smooth transitions */
+.transition-smooth {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Smartphone frame styling */
+.phone-shadow {
+  box-shadow: 
+    0 25px 60px -15px rgba(30, 27, 56, 0.18),
+    0 10px 20px -5px rgba(30, 27, 56, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.device-glare {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0) 60%);
+}
