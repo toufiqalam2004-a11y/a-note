@@ -5,15 +5,24 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "tsc && tsc -p api && vite build",
+    "preview": "vite preview",
+    "typecheck:api": "tsc -p api",
+    "db:local": "pglite-server --db=./.local-db --port=5433",
+    "test:waitlist": "node scripts/test-waitlist.mjs"
   },
   "dependencies": {
+    "@vercel/functions": "^3.11.3",
     "lucide-react": "^1.16.0",
+    "pg": "^8.23.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.6.0",
+    "@electric-sql/pglite-socket": "^0.3.0",
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",

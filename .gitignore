@@ -35,3 +35,6 @@ Thumbs.db
 
 # Temporary previews / scratch
 temp_previews/
+
+# Local PGlite database (dev only)
+.local-db/

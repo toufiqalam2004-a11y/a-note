@@ -71,6 +71,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDownloadModal }) => {
             >
               About
             </a>
+            <a
+              href="#waitlist"
+              className="text-sm font-semibold text-brand-slate hover:text-brand-purple transition-smooth"
+            >
+              Waitlist
+            </a>
           </nav>
 
           {/* Download CTA Button */}
@@ -119,6 +125,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDownloadModal }) => {
               className="px-3 py-2 text-base font-semibold text-brand-navy rounded-lg hover:bg-brand-subtle transition-smooth"
             >
               About
+            </a>
+            <a
+              href="#waitlist"
+              onClick={() => setMobileMenuOpen(false)}
+              className="px-3 py-2 text-base font-semibold text-brand-navy rounded-lg hover:bg-brand-subtle transition-smooth"
+            >
+              Waitlist
             </a>
           </div>
           <div className="pt-2 border-t border-brand-border/60">
