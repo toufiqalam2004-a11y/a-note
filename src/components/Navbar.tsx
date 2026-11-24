@@ -3,7 +3,7 @@ import { Download, Menu, X } from 'lucide-react';
 import { initiateApkDownload } from '../config/download';
 
 interface NavbarProps {
-  onOpenDownloadModal: () => void;
+  onOpenDownloadModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenDownloadModal }) => {

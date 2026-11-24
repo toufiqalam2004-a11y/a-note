@@ -3,7 +3,7 @@ import { Download, ArrowRight, CheckCircle } from 'lucide-react';
 import { initiateApkDownload, DOWNLOAD_CONFIG } from '../config/download';
 
 interface FinalDownloadProps {
-  onOpenDownloadModal: () => void;
+  onOpenDownloadModal?: () => void;
 }
 
 export const FinalDownload: React.FC<FinalDownloadProps> = ({ onOpenDownloadModal }) => {

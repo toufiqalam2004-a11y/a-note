@@ -3,7 +3,7 @@ import { ArrowRight, Film, CheckCircle2 } from 'lucide-react';
 import { initiateApkDownload } from '../config/download';
 
 interface HeroProps {
-  onOpenDownloadModal: () => void;
+  onOpenDownloadModal?: () => void;
 }
 
 export const Hero: React.FC<HeroProps> = ({ onOpenDownloadModal }) => {

@@ -1,51 +1,46 @@
 /**
  * Centralized Download Configuration for A Note Android APK
  * 
- * Instructions:
- * Replace `apkUrl` with your actual direct APK download URL (e.g. GitHub Releases,
- * Google Cloud Storage, Firebase Hosting, S3, or your self-hosted server).
+ * Production APK is served statically from `/downloads/ANote.apk` (84.6 MB).
+ * Package ID: com.editflow.app (Build #5, v1.0.0)
+ * SHA-256: B1D0FD4B2DB797010E361CC4E177B52BA56C48E73C541EB8CACE2B105A0222C5
  * 
- * When configured, all "Download for Android", "Download App", and "Download A Note"
- * buttons trigger direct download of this APK.
- * 
- * If left empty or set to a placeholder, clicking any download button opens a clean,
- * helpful modal informing users that the APK download is being prepared.
+ * Every download CTA across Desktop Navbar, Mobile Navbar, Hero, and Final CTA
+ * uses this centralized configuration and initiates direct download with filename ANote.apk.
  */
 export const DOWNLOAD_CONFIG = {
-  // >>> SET YOUR APK URL HERE <<<
-  // Example: 'https://github.com/your-username/a-note/releases/download/v1.0.0/ANote-v1.0.0.apk'
-  apkUrl: '', 
+  // Verified production APK static route:
+  apkUrl: '/downloads/ANote.apk', 
 
   // App metadata displayed across the landing page
   appName: 'A Note',
   appTagline: 'Video Editing & Earnings Tracker',
-  version: 'v1.0.0',
+  version: '1.0.0',
   buildNumber: 5,
   minAndroidVersion: 'Android 8.0 (Oreo) or higher',
-  estimatedSize: '28.4 MB',
+  estimatedSize: '84.6 MB',
   packageId: 'com.editflow.app',
   architecture: 'Universal APK (arm64-v8a, armeabi-v7a, x86_64)',
   database: 'Local SQLite (100% Offline & Private)',
+  sha256: 'B1D0FD4B2DB797010E361CC4E177B52BA56C48E73C541EB8CACE2B105A0222C5',
 };
 
 /**
- * Helper to trigger download or launch fallback modal
+ * Initiates direct download of the production APK with filename ANote.apk
  */
-export function initiateApkDownload(onOpenPlaceholderModal: () => void): void {
+export function initiateApkDownload(onOpenPlaceholderModal?: () => void): void {
   const url = DOWNLOAD_CONFIG.apkUrl.trim();
   
   if (url && url !== '#' && !url.includes('example.com') && !url.includes('PLACEHOLDER')) {
-    // Valid URL configured: initiate direct download
+    // Valid URL configured: initiate direct download with filename ANote.apk
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.setAttribute('download', 'ANote.apk');
-    anchor.target = '_blank';
-    anchor.rel = 'noopener noreferrer';
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
-  } else {
-    // URL not yet configured: invoke callback to show transparent placeholder modal
+  } else if (onOpenPlaceholderModal) {
+    // Fallback if URL is ever cleared
     onOpenPlaceholderModal();
   }
 }
