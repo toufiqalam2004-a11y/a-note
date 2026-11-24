@@ -31,6 +31,9 @@ export const Footer: React.FC<FooterProps> = ({ onOpenPrivacyModal }) => {
 
           {/* Navigation Links & Privacy */}
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-brand-slate">
+            <a href="#waitlist" className="font-semibold text-brand-purple hover:text-brand-purpleDark transition-smooth">
+              Join the Waitlist
+            </a>
             <a href="#features" className="hover:text-brand-purple transition-smooth">
               Features
             </a>

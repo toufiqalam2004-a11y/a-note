@@ -46,15 +46,17 @@ async function runAudit() {
   assert(downloadConfigSrc.includes("packageId: 'com.editflow.app'"), "packageId is 'com.editflow.app'");
   assert(downloadConfigSrc.includes("anchor.setAttribute('download', 'ANote.apk')"), "anchor download filename is set to 'ANote.apk'");
 
-  // 3. CTA Buttons Connectivity
-  console.log('\n--- 3. CTA Buttons Connectivity ---');
+  // 3. CTA Buttons Connectivity (pre-launch: waitlist-only landing page)
+  // The APK and download infrastructure stay in place (sections 1, 2 and 6),
+  // but no visible CTA triggers a download until the official launch.
+  console.log('\n--- 3. CTA Buttons Connectivity (Waitlist-only) ---');
   const navbarSrc = fs.readFileSync('src/components/Navbar.tsx', 'utf-8');
   const heroSrc = fs.readFileSync('src/components/Hero.tsx', 'utf-8');
-  const finalDownloadSrc = fs.readFileSync('src/components/FinalDownload.tsx', 'utf-8');
+  const appSrc = fs.readFileSync('src/App.tsx', 'utf-8');
 
-  assert(navbarSrc.includes('initiateApkDownload(onOpenDownloadModal)'), 'Navbar download button uses initiateApkDownload');
-  assert(heroSrc.includes('initiateApkDownload(onOpenDownloadModal)'), 'Hero download button uses initiateApkDownload');
-  assert(finalDownloadSrc.includes('initiateApkDownload(onOpenDownloadModal)'), 'Final CTA download button uses initiateApkDownload');
+  assert(navbarSrc.includes('href="#waitlist"') && navbarSrc.includes('Join the Waitlist') && !navbarSrc.includes('initiateApkDownload'), 'Navbar primary CTA is Join the Waitlist (no download)');
+  assert(heroSrc.includes('href="#waitlist"') && heroSrc.includes('Join the Waitlist') && !heroSrc.includes('initiateApkDownload'), 'Hero primary CTA is Join the Waitlist (no download)');
+  assert(appSrc.includes('<Waitlist />') && !appSrc.includes('<FinalDownload'), 'Waitlist section rendered; final download section hidden');
 
   // 4. Check HTML and SEO Metadata in index.html
   console.log('\n--- 4. SEO Metadata, Branding & Favicon Audit ---');

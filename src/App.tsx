@@ -5,7 +5,6 @@ import { Features } from './components/Features';
 import { AppPreview } from './components/AppPreview';
 import { AboutSection } from './components/AboutSection';
 import { Waitlist } from './components/Waitlist';
-import { FinalDownload } from './components/FinalDownload';
 import { Footer } from './components/Footer';
 import { PrivacyModal } from './components/PrivacyModal';
 
@@ -31,14 +30,11 @@ export default function App() {
         {/* 4. Why A Note (About Section) */}
         <AboutSection />
 
-        {/* 5. Waitlist Section */}
+        {/* 5. Waitlist Section (primary CTA until launch) */}
         <Waitlist />
-
-        {/* 6. Final Download CTA Section */}
-        <FinalDownload />
       </main>
 
-      {/* 7. Footer */}
+      {/* 6. Footer */}
       <Footer onOpenPrivacyModal={() => setIsPrivacyModalOpen(true)} />
 
       {/* Privacy Policy Modal */}

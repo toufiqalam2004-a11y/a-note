@@ -1,12 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Menu, X } from 'lucide-react';
-import { initiateApkDownload } from '../config/download';
+import { ArrowRight, Menu, X } from 'lucide-react';
 
-interface NavbarProps {
-  onOpenDownloadModal?: () => void;
-}
-
-export const Navbar: React.FC<NavbarProps> = ({ onOpenDownloadModal }) => {
+export const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -17,10 +12,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDownloadModal }) => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  const handleDownloadClick = () => {
-    initiateApkDownload(onOpenDownloadModal);
-  };
 
   return (
     <header
@@ -54,6 +45,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDownloadModal }) => {
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
             <a
+              href="#waitlist"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-purple hover:text-brand-purpleDark transition-smooth"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-mint animate-pulse" />
+              Waitlist
+            </a>
+            <a
               href="#features"
               className="text-sm font-semibold text-brand-slate hover:text-brand-purple transition-smooth"
             >
@@ -71,23 +69,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDownloadModal }) => {
             >
               About
             </a>
-            <a
-              href="#waitlist"
-              className="text-sm font-semibold text-brand-slate hover:text-brand-purple transition-smooth"
-            >
-              Waitlist
-            </a>
           </nav>
 
-          {/* Download CTA Button */}
+          {/* Primary CTA: Join the Waitlist */}
           <div className="hidden sm:flex items-center gap-3">
-            <button
-              onClick={handleDownloadClick}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-purple hover:bg-brand-purpleDark text-white text-sm font-semibold shadow-button hover:shadow-lg transition-smooth active:scale-[0.98]"
+            <a
+              href="#waitlist"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-purple hover:bg-brand-purpleDark text-white text-sm font-semibold shadow-button hover:shadow-lg transition-smooth active:scale-[0.98] group"
             >
-              <Download className="w-4 h-4" />
-              <span>Download App</span>
-            </button>
+              <span>Join the Waitlist</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-smooth" />
+            </a>
           </div>
 
           {/* Mobile Menu Button */}
@@ -106,6 +98,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDownloadModal }) => {
         <div className="md:hidden bg-white border-b border-brand-border px-4 pt-3 pb-6 space-y-3 shadow-xl animate-fadeIn">
           <div className="flex flex-col space-y-1">
             <a
+              href="#waitlist"
+              onClick={() => setMobileMenuOpen(false)}
+              className="px-3 py-2 text-base font-semibold text-brand-purple rounded-lg hover:bg-brand-subtle transition-smooth"
+            >
+              Waitlist
+            </a>
+            <a
               href="#features"
               onClick={() => setMobileMenuOpen(false)}
               className="px-3 py-2 text-base font-semibold text-brand-navy rounded-lg hover:bg-brand-subtle transition-smooth"
@@ -126,25 +125,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDownloadModal }) => {
             >
               About
             </a>
+          </div>
+          <div className="pt-2 border-t border-brand-border/60">
             <a
               href="#waitlist"
               onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 text-base font-semibold text-brand-navy rounded-lg hover:bg-brand-subtle transition-smooth"
-            >
-              Waitlist
-            </a>
-          </div>
-          <div className="pt-2 border-t border-brand-border/60">
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                handleDownloadClick();
-              }}
               className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-brand-purple text-white text-sm font-semibold shadow-button"
             >
-              <Download className="w-4 h-4" />
-              <span>Download for Android</span>
-            </button>
+              <span>Join the Waitlist</span>
+              <ArrowRight className="w-4 h-4" />
+            </a>
           </div>
         </div>
       )}
